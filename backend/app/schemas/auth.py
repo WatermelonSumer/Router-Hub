@@ -8,7 +8,10 @@ from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
-Role = Literal["user", "owner"]
+# 系统内全部角色：admin 只能由脚本创建，注册接口无法产生
+Role = Literal["user", "owner", "admin"]
+# 注册时允许的角色：刻意不含 admin，防止外部注册出管理员
+RegisterRole = Literal["user", "owner"]
 
 
 class RegisterRequest(BaseModel):
@@ -16,7 +19,7 @@ class RegisterRequest(BaseModel):
 
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
-    role: Role = "user"
+    role: RegisterRole = "user"
     wechat: str | None = Field(default=None, max_length=128)
     qq: str | None = Field(default=None, max_length=32)
 

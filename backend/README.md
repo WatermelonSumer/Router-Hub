@@ -53,14 +53,27 @@ poetry run aerich upgrade
 ## 运行
 
 ```bash
-# Web API（开发）
-poetry run uvicorn app.main:app --reload
+# Web API（开发）。注意：本机 8000 端口被占用时改用 8010
+poetry run uvicorn app.main:app --reload --port 8010
 # 健康检查
-curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8010/health
 
 # 探测 worker（独立进程）
 poetry run python -m app.worker.scheduler
 ```
+
+## 创建管理员
+
+admin 角色只能由脚本创建，注册接口无法产生（防止外部注册出管理员）。
+
+```bash
+# 新建管理员（按提示隐藏输入密码，两次确认）
+poetry run python -m app.scripts.create_admin --email admin@example.com
+
+# 邮箱已存在时，把该用户升级为管理员
+poetry run python -m app.scripts.create_admin --email someone@example.com --promote
+```
+
 
 ## 测试与代码质量
 
