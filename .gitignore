@@ -2,3 +2,18 @@
 .idea
 draft
 logs
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# 数据库本地文件
+*.sqlite3
+*.db
