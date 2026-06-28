@@ -1,5 +1,25 @@
 # 进度
 
+## 2026-06-29
+
+### Completed
+
+- 搭建前端骨架（frontend/）：Next.js 16(App Router)+ React 19 + TS + Tailwind v4 + shadcn/ui(new-york) + motion + next-themes。
+  - 双主题基建：globals.css 全套语义 token(slate，light/dark 两套 oklch)；ThemeProvider(class 策略,跟随系统) + ThemeToggle。
+  - shadcn 基础组件源码进 src/components/ui/(button/input/label/card) + lib/utils.cn()。
+  - 登录页 /login（玻璃拟态/赛博风，角色切换 用户/站长，spring 动画，纯 UI 未接后端）。
+  - 首页占位 /，全程零硬编码颜色。
+  - 验证：npm run build / lint 均过，dev server /、/login 200。
+
+### Current State
+
+- 前端骨架可构建可预览，登录页 UI 完成；榜单/详情/坟场/集市页面未开始；未接后端鉴权。
+
+### Next Steps
+
+- 实现后端 /auth(注册/登录 JWT) 并前端对接。
+- 生成首个 aerich 迁移并手工补 partial unique index（需可达 Postgres）。
+
 ## 2026-06-28
 
 ### Completed

@@ -1,18 +1,33 @@
-# pre-commit 配置：提交前自动跑 ruff lint + format
+# pre-commit 配置：提交前自动跑 ruff lint + format 等检查
+# 安装：poetry run pre-commit install
+# 手动全量跑：poetry run pre-commit run --all-files
+# 更新各 hook 版本：poetry run pre-commit autoupdate
+
+# aerich 自动生成的迁移文件不参与代码风格检查
+exclude: ^backend/migrations/
+
 repos:
+  # Ruff：lint(自动修复)+ 格式化，仅作用于 backend/
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.4
+    rev: v0.8.6
     hooks:
       - id: ruff
+        name: ruff-lint
         args: [--fix]
         files: ^backend/
       - id: ruff-format
         files: ^backend/
 
+  # 通用基础检查
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
-      - id: check-yaml
-      - id: check-added-large-files
+      - id: trailing-whitespace        # 删除行尾空白
+      - id: end-of-file-fixer          # 文件结尾保留单个换行
+      - id: check-yaml                 # 校验 YAML 语法
+      - id: check-toml                 # 校验 TOML 语法(pyproject.toml)
+      - id: check-merge-conflict       # 拦截未解决的冲突标记
+      - id: check-added-large-files    # 拦截误提交的大文件
+        args: [--maxkb=1024]
+      - id: mixed-line-ending          # 统一换行符为 LF(配合 .gitattributes)
+        args: [--fix=lf]
