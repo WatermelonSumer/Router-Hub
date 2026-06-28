@@ -2,32 +2,92 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import {
   Activity,
-  Crosshair,
-  Gauge,
   KeyRound,
+  Loader2,
   Mail,
+  MessageCircle,
   Server,
   ShieldCheck,
   Skull,
   Store,
-  TrendingUp,
   User,
-  Zap,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { ApiError, authApi, type Role } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/theme-toggle";
 
-type Role = "user" | "owner";
+type Mode = "login" | "register";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { setSession } = useAuth();
+
+  const [mode, setMode] = React.useState<Mode>("login");
   const [role, setRole] = React.useState<Role>("user");
+
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [wechat, setWechat] = React.useState("");
+  const [qq, setQq] = React.useState("");
+
+  const [error, setError] = React.useState<string | null>(null);
+  const [submitting, setSubmitting] = React.useState(false);
+
+  const isRegister = mode === "register";
+  const ownerRegister = isRegister && role === "owner";
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    // 前端基础校验，减少无谓请求
+    if (!email.trim() || !password) {
+      setError("请填写邮箱和密码");
+      return;
+    }
+    if (isRegister && password.length < 8) {
+      setError("密码至少 8 位");
+      return;
+    }
+    if (ownerRegister && (!wechat.trim() || !qq.trim())) {
+      setError("站长注册必须填写微信和 QQ");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const data = isRegister
+        ? await authApi.register({
+            email: email.trim(),
+            password,
+            role,
+            wechat: ownerRegister ? wechat.trim() : undefined,
+            qq: ownerRegister ? qq.trim() : undefined,
+          })
+        : await authApi.login({ email: email.trim(), password });
+
+      setSession(data);
+      router.push("/");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "操作失败，请重试");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function switchMode(next: Mode) {
+    setMode(next);
+    setError(null);
+  }
 
   return (
     <main className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-background px-4 py-10">
@@ -56,7 +116,7 @@ export default function LoginPage() {
               <ShieldCheck className="size-6 text-primary" />
             </div>
             <h1 className="text-2xl font-semibold tracking-tight">
-              登录 Router-Hub
+              {isRegister ? "注册 Router-Hub" : "登录 Router-Hub"}
             </h1>
             <p className="mt-1.5 text-sm text-muted-foreground">
               客观探测征信的 AI 中转站排行榜
@@ -99,10 +159,7 @@ export default function LoginPage() {
           </div>
 
           {/* 表单 */}
-          <form
-            className="flex flex-col gap-4"
-            onSubmit={(e) => e.preventDefault()}
-          >
+          <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
             <div className="flex flex-col gap-2">
               <Label htmlFor="email">邮箱</Label>
               <div className="relative">
@@ -113,6 +170,9 @@ export default function LoginPage() {
                   placeholder="you@example.com"
                   autoComplete="email"
                   className="pl-9"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={submitting}
                 />
               </div>
             </div>
@@ -120,39 +180,101 @@ export default function LoginPage() {
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">密码</Label>
-                <Link
-                  href="#"
-                  className="text-xs text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  忘记密码？
-                </Link>
+                {!isRegister && (
+                  <Link
+                    href="#"
+                    className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    忘记密码？
+                  </Link>
+                )}
               </div>
               <div className="relative">
                 <KeyRound className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   id="password"
                   type="password"
-                  placeholder="••••••••"
-                  autoComplete="current-password"
+                  placeholder={isRegister ? "至少 8 位" : "••••••••"}
+                  autoComplete={isRegister ? "new-password" : "current-password"}
                   className="pl-9"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={submitting}
                 />
               </div>
             </div>
 
-            <Button type="submit" size="lg" className="mt-2 w-full">
-              {role === "user" ? "以用户身份登录" : "以站长身份登录"}
+            {/* 站长注册：必填微信 + QQ */}
+            {ownerRegister && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="wechat">微信</Label>
+                  <div className="relative">
+                    <MessageCircle className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="wechat"
+                      placeholder="微信号"
+                      className="pl-9"
+                      value={wechat}
+                      onChange={(e) => setWechat(e.target.value)}
+                      disabled={submitting}
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="qq">QQ</Label>
+                  <Input
+                    id="qq"
+                    placeholder="QQ 号"
+                    value={qq}
+                    onChange={(e) => setQq(e.target.value)}
+                    disabled={submitting}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 错误提示 */}
+            {error && (
+              <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {error}
+              </p>
+            )}
+
+            <Button
+              type="submit"
+              size="lg"
+              className="mt-2 w-full"
+              disabled={submitting}
+            >
+              {submitting && <Loader2 className="size-4 animate-spin" />}
+              {isRegister
+                ? role === "user"
+                  ? "注册用户账号"
+                  : "注册站长账号"
+                : role === "user"
+                  ? "以用户身份登录"
+                  : "以站长身份登录"}
             </Button>
           </form>
 
           {/* 分隔 */}
           <div className="my-6 flex items-center gap-3">
             <div className="h-px flex-1 bg-border" />
-            <span className="text-xs text-muted-foreground">还没有账号</span>
+            <span className="text-xs text-muted-foreground">
+              {isRegister ? "已有账号" : "还没有账号"}
+            </span>
             <div className="h-px flex-1 bg-border" />
           </div>
 
-          <Button asChild variant="outline" className="w-full">
-            <Link href="#">注册新账号</Link>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={() => switchMode(isRegister ? "login" : "register")}
+            disabled={submitting}
+          >
+            {isRegister ? "返回登录" : "注册新账号"}
           </Button>
         </div>
 

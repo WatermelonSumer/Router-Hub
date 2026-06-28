@@ -7,6 +7,7 @@ Web 进程只负责 API；探测 worker 是独立进程（app.worker.scheduler�
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from tortoise import Tortoise
 
 from app.api.router import api_router
@@ -31,6 +32,14 @@ def create_app() -> FastAPI:
         title=settings.APP_NAME,
         debug=settings.DEBUG,
         lifespan=lifespan,
+    )
+    # CORS：允许前端跨域携带 Authorization 头调用
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
     app.include_router(api_router)
     return app

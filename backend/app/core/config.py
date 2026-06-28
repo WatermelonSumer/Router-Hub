@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     APP_NAME: str = "Router-Hub"
     DEBUG: bool = False
 
+    # CORS：允许的前端源（逗号分隔），开发默认放行本地前端
+    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
+
     # 数据库与缓存
     DATABASE_URL: str = "postgres://postgres:postgres@localhost:5432/router_hub"
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -70,6 +73,11 @@ class Settings(BaseSettings):
     def speed_anchors_score(self) -> list[float]:
         """速度锚点对应分数解析为浮点列表。"""
         return [float(x) for x in self.SPEED_ANCHORS_SCORE.split(",")]
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """允许的前端源解析为列表。"""
+        return [x.strip() for x in self.CORS_ORIGINS.split(",") if x.strip()]
 
 
 @lru_cache
