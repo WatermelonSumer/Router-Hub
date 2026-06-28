@@ -3,7 +3,20 @@
 import * as React from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
-import { KeyRound, Mail, ShieldCheck, Store, User } from "lucide-react";
+import {
+  Activity,
+  Crosshair,
+  Gauge,
+  KeyRound,
+  Mail,
+  Server,
+  ShieldCheck,
+  Skull,
+  Store,
+  TrendingUp,
+  User,
+  Zap,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,7 +31,7 @@ export default function LoginPage() {
 
   return (
     <main className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-background px-4 py-10">
-      {/* 赛博光晕背景：网格 + 双色辉光，纯装饰 */}
+      {/* 赛博数据感背景：网格 + 辉光 + 浮动粒子 + 扫描线 + 站点名滚动 */}
       <CyberBackground />
 
       {/* 右上角主题切换 */}
@@ -38,7 +51,7 @@ export default function LoginPage() {
           <div className="pointer-events-none absolute inset-x-0 -top-px mx-auto h-px w-3/4 bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
 
           {/* 品牌 */}
-          <div className="mb-8 flex flex-col items-center text-center">
+          <div className="mb-6 flex flex-col items-center text-center">
             <div className="mb-4 flex size-12 items-center justify-center rounded-xl border border-white/10 bg-primary/10 backdrop-blur">
               <ShieldCheck className="size-6 text-primary" />
             </div>
@@ -49,6 +62,9 @@ export default function LoginPage() {
               客观探测征信的 AI 中转站排行榜
             </p>
           </div>
+
+          {/* 实时统计条（mock 数据，后端接入后替换） */}
+          <StatBar />
 
           {/* 角色选择：我是用户 / 我是站长 */}
           <div className="mb-6">
@@ -155,6 +171,99 @@ export default function LoginPage() {
   );
 }
 
+/** 实时统计条：探测中 / 已收录 / 坟场阵亡，数字滚动入场。 */
+function StatBar() {
+  return (
+    <div className="mb-6 grid grid-cols-3 gap-2 rounded-lg border border-border bg-muted/30 px-2 py-3">
+      <Stat
+        icon={<Activity className="size-3.5" />}
+        to={142}
+        label="实时探测"
+        accent
+      />
+      <Stat
+        icon={<Server className="size-3.5" />}
+        to={8600}
+        label="已收录"
+      />
+      <Stat icon={<Skull className="size-3.5" />} to={37} label="坟场阵亡" />
+    </div>
+  );
+}
+
+function Stat({
+  icon,
+  to,
+  label,
+  accent,
+}: {
+  icon: React.ReactNode;
+  to: number;
+  label: string;
+  accent?: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-0.5 text-center">
+      <div
+        className={cn(
+          "flex items-center gap-1 tabular-nums",
+          accent ? "text-primary" : "text-foreground",
+        )}
+      >
+        {accent && (
+          <motion.span
+            aria-hidden
+            animate={{ opacity: [1, 0.3, 1] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+            className="inline-flex"
+          >
+            {icon}
+          </motion.span>
+        )}
+        {!accent && <span className="text-muted-foreground">{icon}</span>}
+        <span className="text-base font-semibold leading-none">
+          <CountUp to={to} />
+        </span>
+      </div>
+      <span className="text-[10px] leading-none text-muted-foreground">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+/** 数字滚动：SSR 渲染目标值（无 hydration mismatch），挂载后从 0 缓动到目标。 */
+function CountUp({ to }: { to: number }) {
+  const [n, setN] = React.useState(to);
+
+  React.useEffect(() => {
+    let raf = 0;
+    let startTs = 0;
+    const duration = 1100;
+    const easeOut = (p: number) => 1 - Math.pow(1 - p, 3);
+
+    const tick = (ts: number) => {
+      if (!startTs) startTs = ts;
+      const p = Math.min((ts - startTs) / duration, 1);
+      setN(Math.round(easeOut(p) * to));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [to]);
+
+  return <>{formatCompact(n)}</>;
+}
+
+/** ≥1000 显示为 x.xk。 */
+function formatCompact(n: number): string {
+  if (n >= 1000) {
+    const k = n / 1000;
+    return `${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)}k`;
+  }
+  return String(n);
+}
+
 /** 角色切换 Tab（透明按钮，选中态由父级滑块体现）。 */
 function RoleTab({
   active,
@@ -173,7 +282,9 @@ function RoleTab({
       onClick={onClick}
       className={cn(
         "relative z-10 flex items-center justify-center gap-2 rounded-md py-2 text-sm font-medium transition-colors",
-        active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+        active
+          ? "text-foreground"
+          : "text-muted-foreground hover:text-foreground",
       )}
     >
       {icon}
@@ -182,13 +293,44 @@ function RoleTab({
   );
 }
 
-/** 赛博风装饰背景：网格 + 双色辉光球。纯展示，aria-hidden。 */
+/* 浮动粒子的确定性坐标（写死，避免 Math.random 导致 SSR/CSR hydration 不一致）。 */
+const PARTICLES = [
+  { left: "8%", top: "18%", size: 3, delay: 0, dur: 7 },
+  { left: "22%", top: "62%", size: 2, delay: 1.2, dur: 9 },
+  { left: "35%", top: "30%", size: 4, delay: 0.5, dur: 8 },
+  { left: "48%", top: "78%", size: 2, delay: 2, dur: 10 },
+  { left: "61%", top: "22%", size: 3, delay: 0.8, dur: 7.5 },
+  { left: "73%", top: "55%", size: 2, delay: 1.6, dur: 9.5 },
+  { left: "85%", top: "35%", size: 4, delay: 0.3, dur: 8.5 },
+  { left: "92%", top: "70%", size: 2, delay: 2.4, dur: 11 },
+  { left: "15%", top: "85%", size: 3, delay: 1, dur: 8 },
+  { left: "55%", top: "12%", size: 2, delay: 1.9, dur: 9 },
+  { left: "68%", top: "88%", size: 3, delay: 0.6, dur: 10.5 },
+  { left: "40%", top: "50%", size: 2, delay: 2.2, dur: 7 },
+];
+
+/* 站点名极淡滚动（mock，纯氛围）。 */
+const SITE_NAMES = [
+  "claudehub",
+  "gptpro",
+  "geminix",
+  "openrelay",
+  "fastapi-gw",
+  "neon-api",
+  "sub2api",
+  "modelhub",
+  "tokenflow",
+  "relaystation",
+];
+
+/** 赛博数据感背景：网格 + 双色辉光 + 浮动粒子 + 扫描线 + 站点名滚动。纯展示，aria-hidden。 */
 function CyberBackground() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
       {/* 网格 */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] bg-[size:44px_44px] opacity-40 [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]" />
-      {/* 辉光球 */}
+
+      {/* 双色辉光球 */}
       <motion.div
         initial={{ opacity: 0.5 }}
         animate={{ opacity: [0.5, 0.8, 0.5] }}
@@ -198,9 +340,58 @@ function CyberBackground() {
       <motion.div
         initial={{ opacity: 0.4 }}
         animate={{ opacity: [0.4, 0.7, 0.4] }}
-        transition={{ duration: 9, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+        transition={{
+          duration: 9,
+          repeat: Infinity,
+          ease: "easeInOut",
+          delay: 1,
+        }}
         className="absolute -right-24 bottom-0 size-[26rem] rounded-full bg-sky-500/20 blur-[120px]"
       />
+
+      {/* 浮动粒子 */}
+      {PARTICLES.map((p, i) => (
+        <motion.span
+          key={i}
+          className="absolute rounded-full bg-primary/50"
+          style={{
+            left: p.left,
+            top: p.top,
+            width: p.size,
+            height: p.size,
+          }}
+          animate={{ y: [0, -14, 0], opacity: [0.2, 0.7, 0.2] }}
+          transition={{
+            duration: p.dur,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: p.delay,
+          }}
+        />
+      ))}
+
+      {/* 扫描线：自上而下循环 */}
+      <motion.div
+        className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent"
+        animate={{ top: ["-5%", "105%"] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
+      />
+
+      {/* 底部站点名极淡横向滚动 */}
+      <div className="absolute inset-x-0 bottom-6 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_15%,black_85%,transparent)]">
+        <motion.div
+          className="flex w-max gap-8 whitespace-nowrap font-mono text-xs text-muted-foreground/25"
+          animate={{ x: ["0%", "-50%"] }}
+          transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+        >
+          {[...SITE_NAMES, ...SITE_NAMES].map((name, i) => (
+            <span key={i} className="flex items-center gap-2">
+              <span className="size-1 rounded-full bg-primary/40" />
+              {name}
+            </span>
+          ))}
+        </motion.div>
+      </div>
     </div>
   );
 }
