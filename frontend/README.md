@@ -8,6 +8,9 @@ AI 中转站 Rank 系统前端：**Next.js 16(App Router)+ TypeScript + Tailwind
 
 - **双主题(light/dark)**：所有颜色走语义 CSS 变量(`bg-background`/`text-foreground`/`primary`/`muted`/`border`…)，
   **禁止硬编码颜色**(不写 `bg-white`/`#fff`/`zinc-50`)。主题切换走 next-themes(class 策略)，默认跟随系统。
+- **移动端适配(mobile-first)**：默认样式写移动端，用 Tailwind 断点(`sm:`/`md:`/`lg:`)向上加桌面增强；
+  **禁止「先桌面后补移动」**。验收基线 375px 宽不破版可用；触控目标 ≥ 44px；不以 hover 作唯一交互；
+  榜单表格窄屏转卡片/横滚、导航折叠汉堡菜单；适配 `env(safe-area-inset-*)`，杜绝横向溢出。
 - 字体用自托管 `geist` 包(非 `next/font/google`)，避免构建时联网拉 Google Fonts 失败。
 - shadcn 组件以源码形式放在 `src/components/ui/`，完全可控。
 
