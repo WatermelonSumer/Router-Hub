@@ -2,7 +2,7 @@
 
 from tortoise import fields
 
-from app.models.base import BaseModel, gen_uuid7
+from app.models.base import BaseModel, SoftDeleteManager, gen_uuid7
 
 
 class RelaySite(BaseModel):
@@ -42,6 +42,6 @@ class RelaySite(BaseModel):
     first_seen_at = fields.DatetimeField(null=True)
     last_probe_at = fields.DatetimeField(null=True)
 
-    class Meta(BaseModel.Meta):
-        abstract = False
+    class Meta:
         table = "relay_sites"
+        manager = SoftDeleteManager()

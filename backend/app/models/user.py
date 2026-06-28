@@ -2,7 +2,7 @@
 
 from tortoise import fields
 
-from app.models.base import BaseModel, gen_uuid7
+from app.models.base import BaseModel, SoftDeleteManager, gen_uuid7
 
 
 class User(BaseModel):
@@ -22,6 +22,6 @@ class User(BaseModel):
     wechat = fields.CharField(max_length=128, null=True)
     qq = fields.CharField(max_length=32, null=True)
 
-    class Meta(BaseModel.Meta):
-        abstract = False
+    class Meta:
         table = "users"
+        manager = SoftDeleteManager()

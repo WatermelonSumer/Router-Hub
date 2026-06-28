@@ -2,7 +2,7 @@
 
 from tortoise import fields
 
-from app.models.base import BaseModel, gen_uuid7
+from app.models.base import BaseModel, SoftDeleteManager, gen_uuid7
 
 
 class PostResponse(BaseModel):
@@ -18,6 +18,6 @@ class PostResponse(BaseModel):
 
     status = fields.CharField(max_length=16, default="pending")  # pending | connected | confirmed
 
-    class Meta(BaseModel.Meta):
-        abstract = False
+    class Meta:
         table = "post_responses"
+        manager = SoftDeleteManager()

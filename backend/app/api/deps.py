@@ -40,3 +40,19 @@ async def get_current_user(
     if user is None:
         raise _UNAUTHORIZED
     return user
+
+
+async def get_current_owner(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """要求当前用户为站长（owner）；否则 403。
+
+    管理员（admin）不自动具备站长身份：上架是站长的业务动作，
+    需要时由管理员单独的接口操作，避免角色语义混淆。
+    """
+    if current_user.role != "owner":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="仅站长可执行此操作",
+        )
+    return current_user

@@ -2,7 +2,7 @@
 
 from tortoise import fields
 
-from app.models.base import BaseModel, gen_uuid7
+from app.models.base import BaseModel, SoftDeleteManager, gen_uuid7
 
 
 class LeaderboardWeight(BaseModel):
@@ -19,6 +19,6 @@ class LeaderboardWeight(BaseModel):
     w_authenticity = fields.FloatField(default=0.0)
     w_review = fields.FloatField(default=0.0)
 
-    class Meta(BaseModel.Meta):
-        abstract = False
+    class Meta:
         table = "leaderboard_weights"
+        manager = SoftDeleteManager()

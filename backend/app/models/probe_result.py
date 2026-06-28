@@ -2,7 +2,7 @@
 
 from tortoise import fields
 
-from app.models.base import BaseModel, gen_uuid7
+from app.models.base import BaseModel, SoftDeleteManager, gen_uuid7
 
 
 class ProbeResult(BaseModel):
@@ -28,6 +28,6 @@ class ProbeResult(BaseModel):
 
     error_sample = fields.TextField(null=True)
 
-    class Meta(BaseModel.Meta):
-        abstract = False
+    class Meta:
         table = "probe_results"
+        manager = SoftDeleteManager()

@@ -1,10 +1,22 @@
 """pytest 公共 fixture：用 sqlite 内存库，测试不依赖 Postgres。"""
 
+import pytest
 import pytest_asyncio
+from cryptography.fernet import Fernet
 from httpx import ASGITransport, AsyncClient
 from tortoise import Tortoise
 
+from app.core.config import settings
 from app.main import create_app
+
+
+@pytest.fixture(autouse=True)
+def _test_secrets():
+    """为测试注入一个有效的 Fernet 密钥，使 key 加解密可用（不依赖真实 .env）。"""
+    original = settings.KEY_ENCRYPTION_SECRET
+    settings.KEY_ENCRYPTION_SECRET = Fernet.generate_key().decode()
+    yield
+    settings.KEY_ENCRYPTION_SECRET = original
 
 
 @pytest_asyncio.fixture

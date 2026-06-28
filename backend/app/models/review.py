@@ -2,7 +2,7 @@
 
 from tortoise import fields
 
-from app.models.base import BaseModel, gen_uuid7
+from app.models.base import BaseModel, SoftDeleteManager, gen_uuid7
 
 
 class Review(BaseModel):
@@ -23,6 +23,6 @@ class Review(BaseModel):
 
     verified = fields.BooleanField(default=False)  # 仅 verified 评价计入加权
 
-    class Meta(BaseModel.Meta):
-        abstract = False
+    class Meta:
         table = "reviews"
+        manager = SoftDeleteManager()

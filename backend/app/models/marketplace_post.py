@@ -2,7 +2,7 @@
 
 from tortoise import fields
 
-from app.models.base import BaseModel, gen_uuid7
+from app.models.base import BaseModel, SoftDeleteManager, gen_uuid7
 
 
 class MarketplacePost(BaseModel):
@@ -26,6 +26,6 @@ class MarketplacePost(BaseModel):
     note = fields.TextField(null=True)  # 唯一自由文本
     status = fields.CharField(max_length=16, default="open", db_index=True)  # open | closed
 
-    class Meta(BaseModel.Meta):
-        abstract = False
+    class Meta:
         table = "marketplace_posts"
+        manager = SoftDeleteManager()

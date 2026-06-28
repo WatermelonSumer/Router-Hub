@@ -2,7 +2,7 @@
 
 from tortoise import fields
 
-from app.models.base import BaseModel, gen_uuid7
+from app.models.base import BaseModel, SoftDeleteManager, gen_uuid7
 
 
 class SiteScore(BaseModel):
@@ -24,6 +24,6 @@ class SiteScore(BaseModel):
     composite_score = fields.FloatField(null=True)
     rank = fields.IntField(null=True)
 
-    class Meta(BaseModel.Meta):
-        abstract = False
+    class Meta:
         table = "site_scores"
+        manager = SoftDeleteManager()

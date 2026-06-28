@@ -119,3 +119,38 @@ export const authApi = {
 
   me: (token: string) => request<UserPublic>("/auth/me", { token }),
 };
+
+// ===== 中转站（与后端 schemas/site.py 对应） =====
+
+export type SiteCreatePayload = {
+  name: string;
+  base_url: string;
+  api_key: string;
+  slug?: string;
+  site_url?: string;
+  declared_models?: string[];
+  min_topup?: string;
+  pay_methods?: string;
+  rpm_limit?: number;
+};
+
+export type SiteOwnerView = {
+  site_id: string;
+  name: string;
+  slug: string;
+  base_url: string;
+  site_url: string | null;
+  key_hint: string;
+  status: string;
+  declared_models: string[] | null;
+  min_topup: string | null;
+  pay_methods: string | null;
+  rpm_limit: number | null;
+};
+
+export const siteApi = {
+  create: (payload: SiteCreatePayload, token: string) =>
+    request<SiteOwnerView>("/sites", { method: "POST", body: payload, token }),
+
+  mine: (token: string) => request<SiteOwnerView[]>("/sites/mine", { token }),
+};

@@ -35,9 +35,10 @@ class SoftDeleteManager(Manager):
 class BaseModel(Model):
     """所有业务表的抽象基类，封装双键制、软删除、时间戳。
 
-    注意：Tortoise 不会从抽象基类继承 Meta.manager。每个具体模型的 Meta
-    必须写成 `class Meta(BaseModel.Meta): abstract = False`，
-    才能继承 SoftDeleteManager（自动过滤假删除行）。
+    软删除依赖 SoftDeleteManager。Tortoise 的 Manager 按模型绑定 _model，
+    多个模型【不能共享同一个实例】（否则 _model 互相覆盖，filter 会串到别的表）。
+    因此每个具体模型必须在自己的 Meta 里写独立的 `manager = SoftDeleteManager()`，
+    并 `abstract = False`。不要用 `class Meta(BaseModel.Meta)` 继承，那会共享实例。
     """
 
     # 内部主键：仅 ORM 内部用，不对外暴露
@@ -51,12 +52,8 @@ class BaseModel(Model):
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
-    # 默认管理器：过滤假删除
-    manager = SoftDeleteManager()
-
     class Meta:
         abstract = True
-        manager = SoftDeleteManager()
 
     @classmethod
     def all_objects(cls) -> QuerySet:
