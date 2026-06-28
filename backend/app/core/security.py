@@ -1,11 +1,14 @@
-"""安全相关工具：站长 key 加密、密码哈希。
+"""安全相关工具：站长 key 加密、密码哈希、JWT 令牌。
 
 红线约束（见 docs/dev、项目记忆 security-and-business-constraints）：
 - 站长 key 加密落库，永不下发前端，绝不进日志。
 - 加密密钥仅来自 .env（KEY_ENCRYPTION_SECRET），不进代码库。
 """
 
+from datetime import UTC, datetime, timedelta
+
 import bcrypt
+import jwt
 from cryptography.fernet import Fernet
 
 from app.core.config import settings
@@ -49,3 +52,25 @@ def verify_password(password: str, password_hash: str) -> bool:
     """校验明文密码与哈希是否匹配。"""
     pw = password.encode("utf-8")[:72]
     return bcrypt.checkpw(pw, password_hash.encode("utf-8"))
+
+
+def create_access_token(subject: str, extra_claims: dict | None = None) -> str:
+    """签发 JWT 访问令牌。
+
+    subject 放用户业务键 user_id（字符串）；不放 email/明文等敏感信息。
+    过期时间由 settings.ACCESS_TOKEN_EXPIRE_MINUTES 控制。
+    """
+    now = datetime.now(UTC)
+    payload: dict = {
+        "sub": subject,
+        "iat": now,
+        "exp": now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    }
+    if extra_claims:
+        payload.update(extra_claims)
+    return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+
+
+def decode_access_token(token: str) -> dict:
+    """解码并校验 JWT；签名错误/过期会抛 jwt.PyJWTError，由上层转 401。"""
+    return jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])

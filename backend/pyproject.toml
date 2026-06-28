@@ -15,9 +15,11 @@ dependencies = [
     "uuid-utils (>=0.10.0,<0.11.0)",
     "cryptography (>=44.0.0,<45.0.0)",
     "bcrypt (>=4.1.0,<6.0.0)",
+    "pyjwt (>=2.10.0,<3.0.0)",
     "redis (>=5.2.0,<6.0.0)",
     "httpx (>=0.28.0,<0.29.0)",
     "apscheduler (>=3.11.0,<4.0.0)",
+    "email-validator (>=2.2.0,<3.0.0)",
 ]
 
 [tool.poetry]
@@ -41,6 +43,8 @@ target-version = "py312"
 [tool.ruff.lint]
 # E/F 基础，I 排序，UP 现代化，B bugbear
 select = ["E", "F", "I", "UP", "B"]
+# B008：FastAPI 的 Depends()/Query() 等惯例就放在参数默认值里，非缺陷
+ignore = ["B008"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

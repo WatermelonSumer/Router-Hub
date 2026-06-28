@@ -57,7 +57,9 @@ class Settings(BaseSettings):
 
     # 安全（绝不进库/日志）
     KEY_ENCRYPTION_SECRET: str = ""  # Fernet 密钥；生产必须经 .env 注入
-    JWT_SECRET: str = "dev-insecure-change-me"
+    JWT_SECRET: str = "dev-insecure-change-me-please-use-32+bytes"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 访问令牌有效期，默认 7 天
 
     @property
     def speed_anchors_ms(self) -> list[int]:
