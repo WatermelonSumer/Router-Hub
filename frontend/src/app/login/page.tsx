@@ -18,8 +18,8 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { ApiError, authApi, type Role } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
+import { ApiError, authApi, type RegisterRole } from "@/lib/api";
+import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,7 +32,7 @@ export default function LoginPage() {
   const { setSession } = useAuth();
 
   const [mode, setMode] = React.useState<Mode>("login");
-  const [role, setRole] = React.useState<Role>("user");
+  const [role, setRole] = React.useState<RegisterRole>("user");
 
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");

@@ -78,7 +78,10 @@ function extractDetail(data: unknown): string | null {
 
 // ===== 类型（与后端 schemas/auth.py 对应） =====
 
-export type Role = "user" | "owner";
+// 系统内全部角色；admin 只能由后端脚本创建
+export type Role = "user" | "owner" | "admin";
+// 注册时允许的角色（不含 admin）
+export type RegisterRole = "user" | "owner";
 
 export type UserPublic = {
   user_id: string;
@@ -95,7 +98,7 @@ export type TokenResponse = {
 export type RegisterPayload = {
   email: string;
   password: string;
-  role: Role;
+  role: RegisterRole;
   wechat?: string;
   qq?: string;
 };
