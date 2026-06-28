@@ -1,4 +1,0 @@
-# 占位文件：保留 migrations/models 目录。
-# 首个迁移需在可达的 PostgreSQL 上执行 `poetry run aerich init-db` 生成，
-# 生成后需手工把 users.email / relay_sites.slug 的唯一约束改写为
-# Postgres partial unique index（WHERE is_deleted = false）。详见 ../README.md。
