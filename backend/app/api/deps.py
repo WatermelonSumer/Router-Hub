@@ -71,3 +71,19 @@ async def get_current_admin(
             detail="仅管理员可执行此操作",
         )
     return current_user
+
+
+async def get_owner_or_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """要求当前用户为站长或管理员；否则 403。
+
+    用于集市只读浏览/内容下架等动作：站长是交易方，admin 是监管方，
+    两者都可读；但发帖/对接等交易动作仍只限站长（用 get_current_owner）。
+    """
+    if current_user.role not in ("owner", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="仅站长或管理员可执行此操作",
+        )
+    return current_user

@@ -1,5 +1,30 @@
 # 进度
 
+## 2026-06-30（续10：超级管理员集市监管视角——浏览 + 下架）
+
+### Completed
+
+- **admin 可进中转集市（监管视角：浏览 + 下架，不发帖/不对接）**：
+  - 后端：deps 加 `get_owner_or_admin`（站长或管理员，用于只读浏览/下架）；
+    `GET /market/posts` 改用该依赖（站长交易方 + admin 监管方均可读，admin 的 is_mine 恒 False）；
+    `close_post` 加 `is_admin` 参数——admin 可关**任意**帖（内容下架），站长仍只能关自己的；
+    发帖/对接/确认/我的对接仍 `get_current_owner`（仅站长）。
+  - 前端：/market 登录墙放行 admin；admin 视角隐藏发帖表单与「我的对接」tab、不拉对接数据，
+    每帖显示「管理下架」按钮（destructive）替代「对接/报名」；描述文案切监管措辞。
+- 测试：test_marketplace +5（admin 可浏览/可关任意帖/不能发帖 403/不能对接 403/普通用户仍 403）。
+  后端共 **102 passed**，ruff 通过；前端 lint+build 通过。
+
+### Current State（存档点 2026-06-30 续10）
+
+- 集市三类角色边界清晰：游客/普通用户拦截；站长交易（发帖/对接/换名片）；admin 监管（浏览/下架）。
+- **新接口需 VM 后端重载才生效。**
+- **Git：本次（续10）改动待提交（feat/hero）。**
+
+### Next Steps（下次从这里挑）
+
+- 集市阶段 2/3：B 端互评（confirmed 解锁 owner_deal → 写 reviews，喂 review_score）。
+- C 端评价（待 root key 前提）；站点编辑/下架；worker 在 VM 常驻。
+
 ## 2026-06-30（续9：中转集市阶段1——发帖+浏览筛选+对接撮合）
 
 ### Completed

@@ -220,7 +220,15 @@ function ReputationBadge({ rep }: { rep: OwnerReputation }) {
 }
 
 // ===== 帖子卡片 =====
-export function PostCard({ post, onChanged }: { post: PostView; onChanged: () => void }) {
+export function PostCard({
+  post,
+  isAdmin,
+  onChanged,
+}: {
+  post: PostView;
+  isAdmin?: boolean;
+  onChanged: () => void;
+}) {
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState<string | null>(null);
   const isClosed = post.status === "closed";
@@ -282,7 +290,15 @@ export function PostCard({ post, onChanged }: { post: PostView; onChanged: () =>
       {msg && <p className="mt-3 text-xs text-muted-foreground">{msg}</p>}
 
       <div className="mt-3 flex gap-2">
-        {post.is_mine ? (
+        {isAdmin ? (
+          // 管理员：监管视角，仅可下架违规帖（不发帖、不对接）
+          !isClosed && (
+            <Button variant="destructive" size="sm" onClick={close} disabled={busy}>
+              {busy ? <Loader2 className="size-4 animate-spin" /> : <X className="size-4" />}
+              管理下架
+            </Button>
+          )
+        ) : post.is_mine ? (
           !isClosed && (
             <Button variant="outline" size="sm" onClick={close} disabled={busy}>
               <X className="size-4" />

@@ -38,8 +38,10 @@ export default function MarketPage() {
     );
   }
 
-  // 登录墙：仅站长可进
-  if (!user || user.role !== "owner") {
+  // 登录墙：站长（交易）或管理员（监管）可进
+  const isOwner = user?.role === "owner";
+  const isAdmin = user?.role === "admin";
+  if (!user || (!isOwner && !isAdmin)) {
     return (
       <SiteShell>
         <div className="mx-auto flex max-w-md flex-col items-center px-4 py-32 text-center">
@@ -62,12 +64,12 @@ export default function MarketPage() {
 
   return (
     <SiteShell>
-      <MarketConsole />
+      <MarketConsole isAdmin={isAdmin} />
     </SiteShell>
   );
 }
 
-function MarketConsole() {
+function MarketConsole({ isAdmin }: { isAdmin: boolean }) {
   const [posts, setPosts] = React.useState<PostView[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [filter, setFilter] = React.useState<Filter>({});
@@ -88,6 +90,7 @@ function MarketConsole() {
   }, [filter]);
 
   const loadDeals = React.useCallback(async () => {
+    if (isAdmin) return; // 管理员无交易，不拉对接
     const token = getToken();
     if (!token) return;
     try {
@@ -100,7 +103,7 @@ function MarketConsole() {
     } catch {
       // 对接列表加载失败不致命，留空
     }
-  }, []);
+  }, [isAdmin]);
 
   React.useEffect(() => {
     const id = setTimeout(() => void loadPosts(), 0);
@@ -119,37 +122,44 @@ function MarketConsole() {
         <h1 className="text-2xl font-semibold tracking-tight">中转集市</h1>
       </header>
       <p className="mt-1.5 text-sm text-muted-foreground">
-        站长间批发倒卖 API 产能：找上游=进货，找下游=出货。对接确认后交换名片。
+        {isAdmin
+          ? "管理员监管视角：浏览全部帖子，可下架违规内容。发帖与对接为站长交易动作。"
+          : "站长间批发倒卖 API 产能：找上游=进货，找下游=出货。对接确认后交换名片。"}
       </p>
 
-      {/* 顶部 tab */}
-      <nav className="mt-6 flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
-        {[
-          { key: "browse", label: "浏览 / 发帖" },
-          { key: "deals", label: "我的对接" },
-        ].map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setTab(t.key as "browse" | "deals")}
-            className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              tab === t.key
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
+      {/* 顶部 tab：管理员无交易，不显示「我的对接」 */}
+      {!isAdmin && (
+        <nav className="mt-6 flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
+          {[
+            { key: "browse", label: "浏览 / 发帖" },
+            { key: "deals", label: "我的对接" },
+          ].map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTab(t.key as "browse" | "deals")}
+              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                tab === t.key
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      )}
 
-      {tab === "browse" ? (
+      {tab === "browse" || isAdmin ? (
         <>
-          <CreatePostForm
-            onCreated={() => {
-              void loadPosts();
-            }}
-          />
+          {/* 发帖仅站长 */}
+          {!isAdmin && (
+            <CreatePostForm
+              onCreated={() => {
+                void loadPosts();
+              }}
+            />
+          )}
           <FilterBar filter={filter} onChange={setFilter} />
 
           {error && (
@@ -177,6 +187,7 @@ function MarketConsole() {
                 <PostCard
                   key={p.post_id}
                   post={p}
+                  isAdmin={isAdmin}
                   onChanged={() => {
                     void loadPosts();
                     void loadDeals();

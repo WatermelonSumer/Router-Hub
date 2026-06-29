@@ -183,12 +183,14 @@ async def list_posts(
     return [(p, rep_map[p.author_id]) for p in posts]
 
 
-async def close_post(post_id: str, requester_id: str) -> MarketplacePost:
-    """关闭帖子（仅发帖人可操作）。"""
+async def close_post(
+    post_id: str, requester_id: str, *, is_admin: bool = False
+) -> MarketplacePost:
+    """关闭帖子。站长仅能关自己的；管理员可关任意帖（内容下架/监管）。"""
     post = await MarketplacePost.filter(post_id=post_id).first()
     if post is None:
         raise PostNotFound(post_id)
-    if str(post.author_id) != str(requester_id):
+    if not is_admin and str(post.author_id) != str(requester_id):
         raise NotPostOwner(post_id)
     post.status = "closed"
     await post.save(update_fields=["status", "updated_at"])

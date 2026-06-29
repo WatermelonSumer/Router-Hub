@@ -8,7 +8,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.api.deps import get_current_owner
+from app.api.deps import get_current_owner, get_owner_or_admin
 from app.models.marketplace_post import MarketplacePost
 from app.models.post_response import PostResponse
 from app.models.user import User
@@ -122,14 +122,14 @@ async def create(
 
 @router.get("/posts", response_model=list[PostView])
 async def posts(
-    owner: User = Depends(get_current_owner),
+    viewer: User = Depends(get_owner_or_admin),
     post_type: str | None = Query(default=None),
     direction: str | None = Query(default=None),
     model_family: str | None = Query(default=None),
     max_rate: Decimal | None = Query(default=None, ge=0),
     include_closed: bool = Query(default=False),
 ) -> list[PostView]:
-    """按结构化字段筛选浏览帖子（登录墙后）。"""
+    """按结构化字段筛选浏览帖子。站长（交易）与管理员（监管）均可读。"""
     pairs = await list_posts(
         post_type=post_type,
         direction=direction,
@@ -137,17 +137,18 @@ async def posts(
         max_rate=max_rate,
         include_closed=include_closed,
     )
-    return [_to_post_view(p, rep, str(owner.user_id)) for p, rep in pairs]
+    return [_to_post_view(p, rep, str(viewer.user_id)) for p, rep in pairs]
 
 
 @router.post("/posts/{post_id}/close", response_model=PostView)
 async def close(
     post_id: str,
-    owner: User = Depends(get_current_owner),
+    viewer: User = Depends(get_owner_or_admin),
 ) -> PostView:
-    """关闭自己的帖子。"""
+    """关闭帖子。站长关自己的；管理员可关任意帖（内容下架/监管）。"""
+    is_admin = viewer.role == "admin"
     try:
-        post = await close_post(post_id, str(owner.user_id))
+        post = await close_post(post_id, str(viewer.user_id), is_admin=is_admin)
     except PostNotFound as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="帖子不存在") from exc
     except NotPostOwner as exc:
@@ -155,7 +156,7 @@ async def close(
             status_code=status.HTTP_403_FORBIDDEN, detail="只能关闭自己的帖子"
         ) from exc
     rep = await reputation_for(str(post.author_id))
-    return _to_post_view(post, rep, str(owner.user_id))
+    return _to_post_view(post, rep, str(viewer.user_id))
 
 
 @router.post(

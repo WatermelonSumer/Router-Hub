@@ -28,6 +28,17 @@ async def _register_user(client, email: str):
     return {"Authorization": f"Bearer {resp.json()['access_token']}"}
 
 
+async def _login_admin(client, email: str = "m_admin@test.com"):
+    """直接造一个 admin 用户并登录，返回 headers。"""
+    from app.core.security import hash_password
+    from app.models.user import User
+
+    await User.create(email=email, password_hash=hash_password("adminpass1"), role="admin")
+    resp = await client.post("/auth/login", json={"email": email, "password": "adminpass1"})
+    assert resp.status_code == 200
+    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+
 def _post_body(**over):
     body = {
         "post_type": "supply",
@@ -195,3 +206,51 @@ async def test_cannot_respond_closed_post(client):
     await client.post(f"/market/posts/{post['post_id']}/close", headers=h1)
     resp = await client.post(f"/market/posts/{post['post_id']}/respond", headers=h2)
     assert resp.status_code == 409
+
+
+async def test_admin_can_browse_posts(client):
+    """管理员可浏览集市帖子（监管视角），帖子 is_mine 恒为 False。"""
+    h1, _ = await _register_owner(client, "m_admin_browse_owner@example.com")
+    await client.post("/market/posts", headers=h1, json=_post_body())
+    admin = await _login_admin(client, "m_admin1@test.com")
+
+    resp = await client.get("/market/posts", headers=admin)
+    assert resp.status_code == 200
+    posts = resp.json()
+    assert len(posts) == 1
+    assert posts[0]["is_mine"] is False
+
+
+async def test_admin_can_close_any_post(client):
+    """管理员可关闭任意站长的帖子（内容下架）。"""
+    h1, _ = await _register_owner(client, "m_admin_close_owner@example.com")
+    post = (await client.post("/market/posts", headers=h1, json=_post_body())).json()
+    admin = await _login_admin(client, "m_admin2@test.com")
+
+    resp = await client.post(f"/market/posts/{post['post_id']}/close", headers=admin)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "closed"
+
+
+async def test_admin_cannot_create_post(client):
+    """管理员不能发帖（发帖是站长交易动作，403）。"""
+    admin = await _login_admin(client, "m_admin3@test.com")
+    resp = await client.post("/market/posts", headers=admin, json=_post_body())
+    assert resp.status_code == 403
+
+
+async def test_admin_cannot_respond(client):
+    """管理员不能对接（对接是站长交易动作，403）。"""
+    h1, _ = await _register_owner(client, "m_admin_resp_owner@example.com")
+    post = (await client.post("/market/posts", headers=h1, json=_post_body())).json()
+    admin = await _login_admin(client, "m_admin4@test.com")
+
+    resp = await client.post(f"/market/posts/{post['post_id']}/respond", headers=admin)
+    assert resp.status_code == 403
+
+
+async def test_plain_user_still_blocked_from_browse(client):
+    """普通用户仍不能浏览集市（仅站长/管理员）。"""
+    user = await _register_user(client, "m_plain_user@example.com")
+    resp = await client.get("/market/posts", headers=user)
+    assert resp.status_code == 403
