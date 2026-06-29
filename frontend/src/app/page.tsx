@@ -15,19 +15,19 @@ import { SiteShell } from "@/components/site-shell";
 // 三个分榜入口（数据接入前用静态占位）
 const BOARDS = [
   {
-    href: "/leaderboard/claude",
+    href: "/rank/claude",
     name: "Claude 榜",
     desc: "Claude 系模型中转站实测排名",
     icon: Sparkles,
   },
   {
-    href: "/leaderboard/gpt",
+    href: "/rank/gpt",
     name: "GPT 榜",
     desc: "GPT 系模型中转站实测排名",
     icon: Bot,
   },
   {
-    href: "/leaderboard/gemini",
+    href: "/rank/gemini",
     name: "Gemini 榜",
     desc: "Gemini 系模型中转站实测排名",
     icon: Brain,
@@ -82,7 +82,7 @@ export default function Home() {
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Button asChild size="lg">
-              <Link href="/leaderboard">
+              <Link href="/rank">
                 浏览排行榜
                 <ArrowRight className="size-4" />
               </Link>

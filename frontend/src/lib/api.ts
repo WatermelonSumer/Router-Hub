@@ -187,3 +187,41 @@ export const adminApi = {
       token,
     }),
 };
+
+// ===== 排行榜（与后端 schemas/rank.py 对应） =====
+
+export type RankEntry = {
+  site_id: string;
+  name: string;
+  slug: string;
+  site_url: string | null;
+  status: string;
+  rank: number | null;
+  composite_score: number | null;
+  uptime_score: number | null;
+  speed_score: number | null;
+  authenticity_score: number | null;
+  review_score: number | null;
+  declared_models: string[] | null;
+};
+
+export type RankResponse = {
+  leaderboard: string;
+  sort: string;
+  main: RankEntry[];
+  observing: RankEntry[];
+};
+
+export type RankFamily = "claude" | "gpt" | "gemini";
+export type RankSort = "composite" | "speed" | "uptime";
+
+export const rankApi = {
+  /**
+   * 服务端组件用：拉某分榜。榜单吃 SEO，故走 SSR + ISR（默认 60s 重验证）。
+   * 失败时抛 ApiError，由页面兜底成空态。
+   */
+  list: (family: RankFamily, sort: RankSort = "composite") =>
+    request<RankResponse>(`/rank?leaderboard=${family}&sort=${sort}`, {
+      revalidate: 60,
+    }),
+};

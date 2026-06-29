@@ -16,7 +16,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
 
 const NAV_ITEMS = [
-  { href: "/leaderboard", label: "排行榜" },
+  { href: "/rank", label: "排行榜" },
   { href: "/graveyard", label: "中转站坟场" },
   { href: "/market", label: "中转集市" },
 ];
