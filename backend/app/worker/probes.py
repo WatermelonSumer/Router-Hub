@@ -57,8 +57,13 @@ async def _apply_transition(site: RelaySite) -> bool:
 
 
 async def _record_alive(site: RelaySite, client: httpx.AsyncClient) -> ProbeResult:
-    """对一个站做一次存活探测并落 probe_results，同时更新站点探测时间戳。"""
-    outcome = await probe_alive(client, site.base_url)
+    """对一个站做一次存活探测并落 probe_results，同时更新站点探测时间戳。
+
+    带站长 key 探测（许多上游 /v1/models 需鉴权）；key 即时解密、用完即弃，绝不出本函数。
+    """
+    api_key = decrypt_key(site.encrypted_key) if site.encrypted_key else None
+    outcome = await probe_alive(client, site.base_url, api_key)
+    del api_key  # 用完即弃
     now = timezone.now()
     result = await ProbeResult.create(
         site_id=site.site_id,

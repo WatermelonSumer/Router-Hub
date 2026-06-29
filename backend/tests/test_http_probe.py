@@ -24,6 +24,22 @@ async def test_probe_alive_ok():
     assert out.ttfb_ms is not None
 
 
+async def test_probe_alive_with_key_sends_auth():
+    """带 key 的存活探测：发送 Authorization 头，且 key 不进结果。"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path.endswith("/v1/models")
+        assert request.headers["Authorization"] == "Bearer sk-alive-key"
+        return httpx.Response(200, json={"data": [{"id": "gpt-4o"}]})
+
+    async with _client(handler) as c:
+        out = await probe_alive(c, "https://api.demo.test", "sk-alive-key")
+    assert out.is_alive is True
+    assert out.http_status == 200
+    # 红线：key 绝不出现在结果任何字段
+    assert "sk-alive-key" not in str(out)
+
+
 async def test_probe_alive_non_2xx():
     """非 2xx → 未存活。"""
 

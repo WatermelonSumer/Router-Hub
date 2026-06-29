@@ -74,15 +74,22 @@ def _join(base_url: str, path: str) -> str:
     return f"{base_url.rstrip('/')}/{path.lstrip('/')}"
 
 
-async def probe_alive(client: httpx.AsyncClient, base_url: str) -> AliveOutcome:
+async def probe_alive(
+    client: httpx.AsyncClient, base_url: str, api_key: str | None = None
+) -> AliveOutcome:
     """存活探测：GET /v1/models。
 
     通了（2xx）即视为存活；超时/连接错误/非 2xx 均视为未存活。
+
+    许多中转站的 /v1/models 需鉴权才返回 200（不带 key 会 401）。故可选传入
+    站长 key 带 Authorization 头，按真实可访问性判存活。
+    红线：api_key 仅用于本次请求头，绝不写入返回值 / error_sample / 日志。
     """
     url = _join(base_url, "v1/models")
+    extra = {"Authorization": f"Bearer {api_key}"} if api_key else None
     start = time.monotonic()
     try:
-        resp = await client.get(url, headers=_rand_headers(), timeout=_ALIVE_TIMEOUT)
+        resp = await client.get(url, headers=_rand_headers(extra), timeout=_ALIVE_TIMEOUT)
         elapsed_ms = int((time.monotonic() - start) * 1000)
         alive = 200 <= resp.status_code < 300
         return AliveOutcome(
