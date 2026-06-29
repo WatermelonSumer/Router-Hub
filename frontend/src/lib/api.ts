@@ -234,6 +234,10 @@ export const adminApi = {
   pending: (token: string) =>
     request<SiteAdminView[]>("/admin/sites/pending", { token }),
 
+  /** 按状态列站点（管理员总览观察区/在线/坟场等）。 */
+  byStatus: (status: string, token: string) =>
+    request<SiteAdminView[]>(`/admin/sites?status=${encodeURIComponent(status)}`, { token }),
+
   approve: (siteId: string, token: string) =>
     request<SiteOwnerView>(`/admin/sites/${siteId}/approve`, {
       method: "POST",

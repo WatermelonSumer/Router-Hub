@@ -4,7 +4,7 @@
 默认隐藏的联系方式在此对管理员开放），但响应仍绝不含任何形态的 key。
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import get_current_admin
 from app.models.relay_site import RelaySite
@@ -14,10 +14,23 @@ from app.services.site_service import (
     SiteNotFound,
     SiteNotPending,
     list_pending_sites,
+    list_sites_by_status,
     review_site,
 )
 
 router = APIRouter(prefix="/admin/sites", tags=["admin"])
+
+# 管理员可总览的站点状态（pending 有专属 /pending 接口，这里也允许查）
+_VALID_STATUSES = (
+    "pending",
+    "observing",
+    "online",
+    "abnormal",
+    "revived",
+    "suspected_dead",
+    "dead",
+    "rejected",
+)
 
 
 def _to_admin_view(site: RelaySite, owner: User | None) -> SiteAdminView:
@@ -65,6 +78,24 @@ def _to_owner_view(site: RelaySite) -> SiteOwnerView:
 async def pending(_: User = Depends(get_current_admin)) -> list[SiteAdminView]:
     """列出全部待审核（pending）站点，先到先审。"""
     pairs = await list_pending_sites()
+    return [_to_admin_view(site, owner) for site, owner in pairs]
+
+
+@router.get("", response_model=list[SiteAdminView])
+async def by_status(
+    status_filter: str = Query(default="observing", alias="status"),
+    _: User = Depends(get_current_admin),
+) -> list[SiteAdminView]:
+    """按状态列出站点（管理员总览各状态：观察区/在线/异常/坟场等）。
+
+    非法状态值返回 422。站长联系方式对管理员开放，仍绝不含 key。
+    """
+    if status_filter not in _VALID_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"未知状态：{status_filter}",
+        )
+    pairs = await list_sites_by_status(status_filter)
     return [_to_admin_view(site, owner) for site, owner in pairs]
 
 

@@ -54,7 +54,19 @@ export default function AdminPage() {
 
 // PLACEHOLDER_CONSOLE
 
+// 管理总览的状态分组（待审有审核操作；其余为只读总览）
+const STATUS_TABS: { key: string; label: string }[] = [
+  { key: "pending", label: "待审核" },
+  { key: "observing", label: "观察区" },
+  { key: "online", label: "在线" },
+  { key: "abnormal", label: "异常" },
+  { key: "suspected_dead", label: "疑似阵亡" },
+  { key: "dead", label: "已阵亡" },
+  { key: "rejected", label: "已驳回" },
+];
+
 function AdminConsole() {
+  const [tab, setTab] = React.useState("pending");
   const [sites, setSites] = React.useState<SiteAdminView[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -62,17 +74,20 @@ function AdminConsole() {
     let cancelled = false;
 
     async function load() {
+      setSites(null);
+      setError(null);
       const token = getToken();
       if (!token) {
         if (!cancelled) setSites([]);
         return;
       }
       try {
-        const data = await adminApi.pending(token);
-        if (!cancelled) {
-          setSites(data);
-          setError(null);
-        }
+        // 待审走专属接口（先到先审排序），其余按状态总览
+        const data =
+          tab === "pending"
+            ? await adminApi.pending(token)
+            : await adminApi.byStatus(tab, token);
+        if (!cancelled) setSites(data);
       } catch (err) {
         if (!cancelled) setError(err instanceof ApiError ? err.message : "加载失败");
       }
@@ -82,9 +97,9 @@ function AdminConsole() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [tab]);
 
-  // 审核完成后从待审列表移除
+  // 审核完成后从当前列表移除（仅待审页有此操作）
   function handleReviewed(siteId: string) {
     setSites((prev) => (prev ? prev.filter((s) => s.site_id !== siteId) : prev));
   }
@@ -92,13 +107,31 @@ function AdminConsole() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-10">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">站点审核</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">站点管理</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          通过的站点进入观察区开始探测；驳回需填写理由，站长可见。
+          待审核可通过/驳回；其余状态为总览，查看各站当前探测状态与站长联系方式。
         </p>
       </div>
 
-      <div className="mt-8">
+      {/* 状态标签页 */}
+      <nav className="mt-6 flex gap-1 overflow-x-auto rounded-lg border border-border bg-muted/40 p-1">
+        {STATUS_TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            className={`whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              tab === t.key
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
+      <div className="mt-6">
         {error && (
           <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {error}
@@ -114,14 +147,21 @@ function AdminConsole() {
         {sites !== null && sites.length === 0 && (
           <div className="flex flex-col items-center rounded-xl border border-dashed border-border py-16 text-center">
             <Check className="mb-3 size-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">没有待审核的站点</p>
+            <p className="text-sm text-muted-foreground">
+              {tab === "pending" ? "没有待审核的站点" : "该状态下暂无站点"}
+            </p>
           </div>
         )}
 
         {sites && sites.length > 0 && (
           <div className="grid gap-3">
             {sites.map((site) => (
-              <PendingCard key={site.site_id} site={site} onReviewed={handleReviewed} />
+              <PendingCard
+                key={site.site_id}
+                site={site}
+                reviewable={tab === "pending"}
+                onReviewed={handleReviewed}
+              />
             ))}
           </div>
         )}
@@ -134,9 +174,11 @@ function AdminConsole() {
 
 function PendingCard({
   site,
+  reviewable,
   onReviewed,
 }: {
   site: SiteAdminView;
+  reviewable: boolean;
   onReviewed: (siteId: string) => void;
 }) {
   const [busy, setBusy] = React.useState(false);
@@ -180,7 +222,12 @@ function PendingCard({
     <div className="rounded-xl border border-border bg-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-semibold">{site.name}</h3>
-        <span className="font-mono text-xs text-muted-foreground">/{site.slug}</span>
+        <Link
+          href={`/site/${site.slug}`}
+          className="font-mono text-xs text-muted-foreground hover:text-primary hover:underline"
+        >
+          /{site.slug}
+        </Link>
       </div>
 
       <dl className="mt-3 grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
@@ -202,45 +249,54 @@ function PendingCard({
         </p>
       )}
 
-      {rejecting ? (
-        <div className="mt-4 flex flex-col gap-2">
-          <Label htmlFor={`note-${site.site_id}`}>驳回理由（站长可见）</Label>
-          <Input
-            id={`note-${site.site_id}`}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="例如：base_url 无法连通"
-            disabled={busy}
-          />
-          <div className="flex gap-2">
-            <Button variant="destructive" onClick={handleReject} disabled={busy}>
-              {busy && <Loader2 className="size-4 animate-spin" />}
-              确认驳回
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setRejecting(false);
-                setError(null);
-              }}
+      {/* 驳回理由（已驳回站点只读展示） */}
+      {!reviewable && site.review_note && (
+        <p className="mt-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          驳回理由：{site.review_note}
+        </p>
+      )}
+
+      {/* 审核操作仅待审页可见 */}
+      {reviewable &&
+        (rejecting ? (
+          <div className="mt-4 flex flex-col gap-2">
+            <Label htmlFor={`note-${site.site_id}`}>驳回理由（站长可见）</Label>
+            <Input
+              id={`note-${site.site_id}`}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="例如：base_url 无法连通"
               disabled={busy}
-            >
-              取消
+            />
+            <div className="flex gap-2">
+              <Button variant="destructive" onClick={handleReject} disabled={busy}>
+                {busy && <Loader2 className="size-4 animate-spin" />}
+                确认驳回
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setRejecting(false);
+                  setError(null);
+                }}
+                disabled={busy}
+              >
+                取消
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 flex gap-2">
+            <Button onClick={handleApprove} disabled={busy}>
+              {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+              通过
+            </Button>
+            <Button variant="outline" onClick={() => setRejecting(true)} disabled={busy}>
+              <X className="size-4" />
+              驳回
             </Button>
           </div>
-        </div>
-      ) : (
-        <div className="mt-4 flex gap-2">
-          <Button onClick={handleApprove} disabled={busy}>
-            {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-            通过
-          </Button>
-          <Button variant="outline" onClick={() => setRejecting(true)} disabled={busy}>
-            <X className="size-4" />
-            驳回
-          </Button>
-        </div>
-      )}
+        ))}
     </div>
   );
 }

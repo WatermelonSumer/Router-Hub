@@ -8,12 +8,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, ShieldCheck, X } from "lucide-react";
+import { Menu, ShieldCheck, Store, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
+import { useAuth } from "@/components/auth-provider";
 
 const NAV_ITEMS = [
   { href: "/rank", label: "排行榜" },
@@ -21,8 +22,15 @@ const NAV_ITEMS = [
   { href: "/market", label: "中转集市" },
 ];
 
+// 角色专属控制台入口：放在导航栏最后，按登录角色显示
+const ROLE_NAV: Record<string, { href: string; label: string; icon: React.ReactNode }> = {
+  owner: { href: "/owner", label: "站长控制台", icon: <Store className="size-4" /> },
+  admin: { href: "/admin", label: "管理后台", icon: <ShieldCheck className="size-4" /> },
+};
+
 export function Navbar() {
   const pathname = usePathname();
+  const { user } = useAuth();
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
   function isActive(href: string) {
@@ -32,6 +40,8 @@ export function Navbar() {
   function closeMobile() {
     setMobileOpen(false);
   }
+
+  const roleNav = user ? ROLE_NAV[user.role] : undefined;
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-lg">
@@ -58,6 +68,21 @@ export function Navbar() {
               {item.label}
             </Link>
           ))}
+          {/* 角色控制台入口：导航栏最后 */}
+          {roleNav && (
+            <Link
+              href={roleNav.href}
+              className={cn(
+                "ml-1 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                isActive(roleNav.href)
+                  ? "bg-primary/10 text-primary"
+                  : "text-primary/80 hover:bg-primary/10 hover:text-primary",
+              )}
+            >
+              {roleNav.icon}
+              {roleNav.label}
+            </Link>
+          )}
         </nav>
 
         {/* 右侧：主题 + 用户 + 移动菜单按钮 */}
@@ -98,6 +123,22 @@ export function Navbar() {
                 {item.label}
               </Link>
             ))}
+            {/* 角色控制台入口：移动端同样置于导航最后 */}
+            {roleNav && (
+              <Link
+                href={roleNav.href}
+                onClick={closeMobile}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  isActive(roleNav.href)
+                    ? "bg-primary/10 text-primary"
+                    : "text-primary/80 hover:bg-primary/10 hover:text-primary",
+                )}
+              >
+                {roleNav.icon}
+                {roleNav.label}
+              </Link>
+            )}
             <div className="mt-2 border-t border-border pt-3">
               <UserMenu />
             </div>

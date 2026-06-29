@@ -152,3 +152,47 @@ async def test_admin_endpoints_require_auth(client):
     """未登录访问审核接口返回 401。"""
     resp = await client.get("/admin/sites/pending")
     assert resp.status_code == 401
+
+
+async def test_admin_list_by_status_observing(client):
+    """审核通过后的站点能在 status=observing 的总览中查到（含站长联系方式，不含 key）。"""
+    owner_headers = await _register_owner(client, "owner7@example.com")
+    site = await _create_site(client, owner_headers, name="ObserveHub")
+    admin_headers = await _login_admin(client, "admin7@test.com")
+    await client.post(f"/admin/sites/{site['site_id']}/approve", headers=admin_headers)
+
+    resp = await client.get("/admin/sites?status=observing", headers=admin_headers)
+    assert resp.status_code == 200
+    items = resp.json()
+    assert len(items) == 1
+    assert items[0]["name"] == "ObserveHub"
+    assert items[0]["status"] == "observing"
+    assert items[0]["owner_email"] == "owner7@example.com"
+    # 红线：仍不含 key
+    assert "encrypted_key" not in items[0]
+    assert "sk-abcdefgh1234" not in resp.text
+
+
+async def test_admin_list_by_status_default_observing(client):
+    """status 缺省时默认列 observing（pending 站不应出现）。"""
+    owner_headers = await _register_owner(client, "owner8@example.com")
+    await _create_site(client, owner_headers)  # 留在 pending
+    admin_headers = await _login_admin(client, "admin8@test.com")
+
+    resp = await client.get("/admin/sites", headers=admin_headers)
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+async def test_admin_list_by_status_invalid_422(client):
+    """非法状态值返回 422。"""
+    admin_headers = await _login_admin(client, "admin9@test.com")
+    resp = await client.get("/admin/sites?status=nonsense", headers=admin_headers)
+    assert resp.status_code == 422
+
+
+async def test_admin_list_by_status_requires_admin(client):
+    """站长访问总览接口返回 403。"""
+    owner_headers = await _register_owner(client, "owner10@example.com")
+    resp = await client.get("/admin/sites?status=observing", headers=owner_headers)
+    assert resp.status_code == 403

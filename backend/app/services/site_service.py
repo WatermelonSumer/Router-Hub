@@ -110,6 +110,21 @@ async def list_pending_sites() -> list[tuple[RelaySite, User | None]]:
     return [(s, owner_map.get(str(s.owner_id))) for s in sites]
 
 
+async def list_sites_by_status(status: str) -> list[tuple[RelaySite, User | None]]:
+    """列出某状态的全部站点，并附其站长（管理员总览各状态用）。
+
+    返回 (site, owner) 对；owner 可能为 None。按进入当前状态时间倒序
+    （status_changed_at 缺失则退回创建时间），最近变动的排在前。
+    """
+    sites = await RelaySite.filter(status=status).order_by("-status_changed_at", "-created_at")
+    if not sites:
+        return []
+    owner_ids = {s.owner_id for s in sites}
+    owners = await User.filter(user_id__in=list(owner_ids))
+    owner_map = {str(o.user_id): o for o in owners}
+    return [(s, owner_map.get(str(s.owner_id))) for s in sites]
+
+
 async def review_site(site_id: str, *, approve: bool, note: str | None = None) -> RelaySite:
     """管理员审核站点：通过→observing，驳回→rejected（写 review_note）。
 

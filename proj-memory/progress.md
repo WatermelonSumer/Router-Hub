@@ -1,5 +1,79 @@
 # 进度
 
+## 2026-06-29（续7：管理员各状态总览 + 导航栏角色控制台入口）
+
+### Completed
+
+- **管理员查看观察区/各状态的站**（扩展管理后台，非新建独立页）：
+  - 后端 `GET /admin/sites?status=<状态>`（admin 鉴权，默认 observing，非法状态 422）；
+    service 加 `list_sites_by_status`（按 status_changed_at 倒序，附站长，仍不含 key）。
+    复用现有 SiteAdminView。
+  - 前端 /admin 加状态标签页（待审/观察区/在线/异常/疑似阵亡/已阵亡/已驳回）：
+    待审走专属 /pending（先到先审 + 通过/驳回操作），其余 tab 走 byStatus 只读总览；
+    PendingCard 加 `reviewable` 开关——非待审隐藏审核按钮、显示驳回理由；slug 链到 /site/{slug}。
+- **导航栏角色控制台入口**：navbar 用 useAuth 读角色，在导航栏最后（榜单/坟场/集市之后）
+  显示角色专属入口——owner→站长控制台、admin→管理后台（桌面 + 移动汉堡菜单都加），主色高亮。
+  原头像下拉菜单的入口保留（user-menu.tsx 未动）。
+- 测试：test_admin 新增 5 测试（observing 总览含联系方式不含 key/缺省 observing/非法 422/站长 403）。
+  后端 **80 passed**，ruff 通过；前端 lint + build 均过。
+
+### Current State（存档点 2026-06-29 续7）
+
+- 管理员能在 /admin 切换 tab 看任意状态的站；HeroAPI 在「观察区」tab 可见。
+- **新接口需 VM 后端重载才生效**（当前 VM 跑旧码，/admin/sites 返回 404 属正常，逻辑单测全绿）。
+- **Git：续6（3 提交：详情页/探测带 key/迁移合并）+ 续7（本次）均在 feat/hero，尚未 push。**
+
+### Next Steps（下次从这里挑）
+
+- 让 worker 在 VM 常驻持续探测 + 重启后端使新接口生效。
+- 坟场页 /graveyard、C 端评价、中转集市、站点编辑/下架。
+
+## 2026-06-29（续6：真实数据打通——存活探测带 key + 上架审核链路验证）
+
+### Completed
+
+- **真实站点 HeroAPI 端到端跑通**（首个真实探测产出真实分）：
+  - 上架→审核链路验证无误：站长 hero@gmail.com 上架 HeroAPI（上游 makabaka.chat，
+    声明 gpt-5.5），admin@example.com（密码已被站长改为 test1234）审核通过→observing。
+    **「管理员没有审核按钮」实为误会**：审核按钮一直在（admin/page.tsx 待审卡片内），
+    当时是登录了站长号被 /admin「管理员专属页」拦截所致。
+  - **修真 bug：存活探测不带 key 误判离线**（提交 810b64f）。makabaka.chat 的 /v1/models
+    需鉴权（不带 key 返回 401），导致真实可用站被判离线、observing 无法毕业。
+    `probe_alive` 加可选 api_key 带 Authorization 头；`_record_alive` 即时解密传入用完即弃。
+    诊断确认：带 key GET /v1/models→200、POST /v1/chat→200 真实回复（gpt-5.5）。
+  - **补 leaderboard_weights**：真实库该表为空导致 composite=None（scoring._weights_for
+    缺权重返回全 0）。调 seed_demo._seed_weights() 补三榜权重（幂等，不动站点）。
+  - 探测结果：HeroAPI 在 gpt 观察区 composite=93.3（uptime=100/speed=75.8/auth=100），
+    详情页 verified=True、uptime_30d=100%、30 点曲线。**rank=None 是正确行为**——
+    observing 不上主榜名次，毕业到 online 才有（blueprint 第七节）。无 key/base_url 泄露
+    （site_url=makabaka.chat 是站长主动填的公开主页，非泄露）。
+  - 迁移重整（提交 9f86695）：3 个手写迁移合并为单一 0_20260629215040_init.py（含全字段）。
+
+### Current State（存档点 2026-06-29 续6）
+
+- 全链路真实跑通：上架→审核→**带 key 真实探测→真实分→榜单观察区/详情页**。
+- **数据靠手动跑一轮产出**：worker 尚未在 VM 常驻，不会自动更新；observing 也无法靠
+  时间+样本自然毕业到 online（需 worker 周期跑 + 满 OBSERVING_MIN_DAYS/样本数）。
+- **Git：本会话 3 提交（feat/hero，尚未 push）**：44779ec 详情页 / 810b64f 探测带 key /
+  9f86695 迁移合并。
+- 尚无：坟场页、评价、集市；质量探测预算扣减；Redis ZSET。
+
+### Next Steps（下次从这里挑）
+
+- **让 worker 在 VM 常驻**（`python -m app.worker.scheduler`）持续探测，观察 HeroAPI 毕业。
+- 坟场页 /graveyard（复用详情页布局 + 客观措辞）。
+- C 端评价（充值 key 自证 verified）→ 喂 review_score。
+- 中转集市（B 端发帖/对接/确认 + 互评解锁）。
+- 站点编辑/下架（站长改 base_url/key/硬信息——目前只能脚本改库）。
+
+### 环境 / 联调要点（更新）
+
+- 后端在 VM 8010 跑着（db up）；本机可直连 VM PG（192.168.142.129:15432）跑脚本。
+- **admin 账号密码已改为 test1234**（admin@example.com）；站长 hero@gmail.com。
+- 前端：`cd frontend && npm run dev`（.env.local 指向 http://192.168.142.129:8010）。
+- 手动跑一轮探测：本机连 VM 库后 `await run_alive_probe()` / `run_quality_probe()`（无需传 client）。
+- 详情页访问 /site/heroapi；榜单 /rank/gpt 观察区可见 HeroAPI。
+
 ## 2026-06-29（续5：站点详情页打通——闭合榜单死链）
 
 ### Completed
