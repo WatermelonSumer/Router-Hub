@@ -1,5 +1,142 @@
 # 进度
 
+## 2026-06-29（续4：探测 worker 打通——技术核心）
+
+### Completed
+
+- 探测 worker 全链路（真实探测 + 状态机 + 评分），分层「纯函数 + 依赖注入」便于单测：
+  - `worker/http_probe.py`：probe_alive(GET /v1/models)、probe_quality(POST /v1/chat，用站长 key，
+    max_tokens=1)；client 注入(测试用 httpx.MockTransport)；随机 UA + 轻随机 prompt 防作弊；
+    超时/错误归一化；**key 绝不进 error_sample/日志/返回值**。
+  - `worker/state_machine.py`：`decide_transition(status, ProbeStats)` 纯函数，照搬 blueprint 五之二
+    全转移表（online↔abnormal→suspected→dead、各级恢复、observing 毕业「与」条件/暴毙跳过 abnormal、
+    revived 横跳直接打回）；阈值全走 settings。pending 不在此（admin 审核管）。
+  - `worker/probe_stats.py`：从 probe_results 倒序数连续成败（**维护窗内失败剔除**红线）+ observing
+    天数/alive·quality 样本数。**不加计数列**，符合「只依赖探测事实」原则。
+  - `services/scoring.py`：四指标归一化(① uptime 时间衰减半衰期 ② speed P90+锚点分段 ③ authenticity
+    最近 N 次成功率 ④ review 贝叶斯)，**缺数据记 None 不补 0**，composite 动态权重重分配（陷阱 C）；
+    recompute_site_scores 按声明模型子串归榜(claude/gpt/gemini) upsert + recompute_ranks。
+  - `worker/probes.py`：替换桩。alive 轮拉 online/abnormal/observing/revived/坟场态 并发探测→写
+    ProbeResult→跑状态机落库→online→abnormal 瞬间插队 triggered 质量探测→轮尾重算 scores/三榜 ranks；
+    quality 轮拉主榜+观察态用 key 打 chat。key 即时 decrypt 用完即弃。run_*_probe(client=None) 默认建真实
+    AsyncClient，scheduler 无需改。预算扣减记 TODO（budget_daily=0 视为不限）。
+  - 模型：RelaySite 加 `status_changed_at`（时间型转移条件需要，updated_at 每次保存都变不可用）
+    + 手写迁移 `2_20260629194500_add_status_changed_at.py`；review_site 审核通过时打戳；seed_demo 同步打戳。
+- 测试：test_http_probe(6, MockTransport)、test_state_machine(12, 纯函数穷举转移边)、
+  test_scoring(12, 归一化边界+动态权重)、test_worker_round(5, sqlite+注入 client 端到端)。
+  后端共 **65 passed**，ruff 通过。
+
+### Current State（存档点 2026-06-29 续4）
+
+- 探测 worker 逻辑完整：能真实打上游、判状态机、算分刷 site_scores，喂给已就绪的 /rank。
+- 全链路：注册→上架→审核→**探测产出真实分**→榜单展示，闭环（探测在 sqlite+MockTransport 验证，
+  实跑待 PG/上游可达）。
+- 尚无：详情页、坟场页、评价、集市；Redis ZSET（/rank 直读 PG 够用，ZSET 作缓存优化记 TODO）。
+
+### Next Steps（下次从这里挑）
+
+- 站点详情页 /site/{slug}（游客基础+在线率 / 登录见硬信息 + 在线率曲线，读 probe_results）。
+- 坟场页 /graveyard（suspected_dead/dead 站，客观探测事实措辞）。
+- C 端评价（充值 key 自证 verified）→ 喂 review_score。
+- 中转集市（发帖/对接/确认 + B 端互评解锁）。
+- 质量探测预算扣减（probe_budget_daily>0 时按当日已用降频）。
+- PG/上游恢复后：`aerich upgrade`（review_note + status_changed_at 两迁移）+ seed_demo + 真实站点联调 worker。
+
+### 环境 / 联调要点（沿用）
+
+- 后端 8010：`cd backend && poetry run uvicorn app.main:app --port 8010`；worker：`python -m app.worker.scheduler`
+- 前端：`cd frontend && npm run dev`（.env.local 指向 http://192.168.142.129:8010）
+- 演示数据：`poetry run python -m app.scripts.seed_demo`（需可达 PG；--wipe 清理）。
+- 测试管理员：admin@example.com / RouterHub@2026；admin 只能脚本造。
+
+## 2026-06-29（续3：排行榜展示打通）
+
+### Completed
+
+- 排行榜只读接口 + 服务端渲染展示页：
+  - 后端：`schemas/rank.py`（RankEntry 公开安全字段、RankResponse 主榜+观察区分列）；
+    `services/rank_service.py`（**只读** site_scores 预计算分，service 层 join relay_sites；
+    按站点 status 分流：主榜 online/abnormal/revived、观察区 observing、坟场状态不上榜；
+    sort=composite|speed|uptime，null 分垫底；**不在此算分，算分是 worker 的活**）；
+    `routes/rank.py`（GET /rank?leaderboard=&sort=，游客无鉴权，非法 leaderboard/sort→422）注册进 router。
+  - 前端 URL 迁移：删 app/leaderboard，navbar + 首页全量改 /rank（blueprint「一次定终身」永久结构，
+    收录前改最佳时机）；`app/rank/page.tsx` redirect→/rank/claude。
+  - 榜单页 `app/rank/[family]/page.tsx`（**RSC 服务端渲染**，为 SEO 红线）：
+    服务端 fetch 后端 /rank（lib/api `rankApi.list`，next.revalidate=60 ISR）；
+    三 Tab（claude/gpt/gemini，<Link> 保 SSR）+ 排序切换（?sort= query 服务端读）；
+    主榜桌面表格 / 窄屏卡片（mobile-first）；观察区独立区块标「数据积累中」；
+    动态 generateMetadata + JSON-LD ItemList；null 分显示「暂无」不显示 0；后端不可达兜底空态。
+  - 演示数据 `scripts/seed_demo.py`（幂等以 slug 锚、--wipe 清理）：1 假 owner、5 站
+    （online/abnormal/observing 各状态）、三榜 site_scores（分数手编排名）、leaderboard_weights
+    三行（Claude 抬真实性/GPT/Gemini 抬在线率，blueprint 3.3）。已在 sqlite 验证幂等 + 排序正确。
+- 测试：`tests/test_rank.py` 9 测试（默认 composite 降序/sort=speed 改序/observing 分流/坟场不上榜/
+  null 垫底/公开安全无 key/非法 leaderboard 422/非法 sort 422/空榜）。后端共 **30 passed**，ruff 通过。
+  前端 lint + build 均过（/rank/[family] 为 ƒ 动态 SSR）。
+
+### Current State（存档点 2026-06-29 续3）
+
+- 注册/登录 → 上架(pending) → 审核(approve→observing/reject→rejected) → **榜单展示**（主榜+观察区，三榜+排序）全链路 UI 可走。
+- 榜单读真后端预计算分；但分数目前只能靠 seed_demo 造（探测 worker 仍是桩，还没有真实探测产出分）。
+- 尚无：真实探测、真实算分刷分、站点详情页、坟场页、评价、集市、站点编辑/下架。
+
+### Next Steps（下次从这里挑）
+
+- **探测 worker 接真实站点**（替换 probes.py 桩，用加密 key 打 base_url 写 probe_results，
+  驱动 observing→online 毕业与坟场状态机）——这是让榜单有真实数据的关键，也是技术核心。
+- 评分计算服务（blueprint 六之二归一化 + 动态权重）+ 刷 site_scores/Redis ZSET，喂给已就绪的 /rank。
+- 站点详情页 /site/{slug}（游客基础+在线率 / 登录见硬信息）。
+- 坟场页 /graveyard。
+- 站点编辑/下架。
+- PG 恢复后：跑 `aerich upgrade`（review_note 迁移）+ `python -m app.scripts.seed_demo` 让榜单有内容。
+
+### 环境 / 联调要点（沿用）
+
+- 后端端口 8010（本机 8000 被占）：`cd backend && poetry run uvicorn app.main:app --port 8010`
+- 前端：`cd frontend && npm run dev`（.env.local 指向 http://192.168.142.129:8010）
+- 演示数据：`poetry run python -m app.scripts.seed_demo`（需可达 PG；--wipe 清理重来）。
+- 测试管理员账号：admin@example.com / RouterHub@2026；admin 只能脚本造。
+
+## 2026-06-29（续2：管理员审核打通）
+
+### Completed
+
+- 管理员审核闭环：
+  - 后端：`get_current_admin` 依赖（与 get_current_owner 对称，role!=admin→403）；
+    `SiteAdminView`（站长字段 + owner_email/wechat/qq + created_at，审核触达用，仍不含 key）、
+    `SiteRejectRequest`（note 必填）；service `list_pending_sites`（虚拟外键 service 层 join 站长）
+    + `review_site`（仅 pending 可审，否则 SiteNotPending→409；通过→observing，驳回→rejected 写 review_note）；
+    `routes/admin.py`（GET /admin/sites/pending、POST .../approve、.../reject）注册进 router。
+  - 模型：`RelaySite` 加 `review_note TextField(null=True)`，站长可见驳回理由；`SiteOwnerView` 同步加该字段。
+  - 迁移：PG 当时不可达（VM 192.168.142.129:15432 down），手写
+    `migrations/models/1_20260629181200_add_site_review_note.py`（ALTER ADD review_note），
+    待 PG 恢复后 `aerich upgrade` 应用。
+  - 前端：`adminApi.pending/approve/reject` + `SiteAdminView` 类型；`/admin` 替换 ComingSoon
+    为审核后台（非 admin 拦截、待审卡片含站长联系方式、通过/驳回按钮、驳回弹理由输入、审核后即时移除）；
+    `/owner` STATUS_META 加 rejected、站点卡片 rejected 时显示驳回理由。
+- 测试：`tests/test_admin.py` 8 测试（列待审/通过→observing/驳回→rejected+理由/驳回必填/重复审核 409/
+  404/站长 403/未登录 401）。后端共 **21 passed**，ruff 通过。前端 lint + build 均过。
+
+### Current State（存档点 2026-06-29 续2）
+
+- 已打通注册/登录 → 站长上架(pending) → 管理员审核(approve→observing / reject→rejected+理由)。
+- 状态机前两步落地（pending→observing/rejected）；observing 之后的 online 毕业、坟场分级仍待真实探测驱动。
+- 尚无：真实探测、评分、榜单只读接口、站点编辑/下架、集市。
+
+### Next Steps（下次从这里挑）
+
+- 探测 worker 接真实站点（替换 probes.py 桩，用加密 key 打 base_url 写 probe_results，
+  驱动 observing→online 毕业与坟场状态机）。
+- 排行榜页（可先用假数据做展示）。
+- 站点编辑/下架（站长对自己站点的管理）。
+- PG 恢复后跑 `aerich upgrade` 应用 review_note 迁移。
+
+### 环境 / 联调要点（沿用）
+
+- 后端端口 8010（本机 8000 被占）：`cd backend && poetry run uvicorn app.main:app --port 8010`
+- 前端：`cd frontend && npm run dev`（.env.local 指向 http://localhost:8010）
+- 测试管理员账号（真实 PG）：admin@example.com / RouterHub@2026；admin 只能脚本造
+  （`python -m app.scripts.create_admin --email ...`）。
+
 ## 2026-06-29（续：认证→上架打通）
 
 ### Completed（本日后续，按提交顺序）

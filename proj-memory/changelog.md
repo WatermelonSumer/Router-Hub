@@ -2,6 +2,16 @@
 
 ## 2026-06-29
 
+- 探测 worker（技术核心，真实探测+状态机+评分）：
+  - worker/http_probe.py：probe_alive 打 /v1/models、probe_quality 用站长 key 打 /v1/chat（注入 client、随机 UA/prompt 防作弊、key 不进结果/日志）。
+  - worker/state_machine.py：decide_transition 纯函数，照搬 blueprint 五之二全转移表，阈值走 settings。
+  - worker/probe_stats.py：从 probe_results 算连续成败（维护窗失败剔除）+ observing 天数/样本数，不加列。
+  - services/scoring.py：四指标归一化（uptime 时间衰减/speed P90 锚点/authenticity 比例/review 贝叶斯）+ 缺失数据动态权重不补 0；recompute_site_scores 按声明模型归榜 upsert + recompute_ranks。
+  - worker/probes.py：替换桩，alive/quality 轮并发探测→写 probe_results→跑状态机落库→online→abnormal 插队触发质量探测→轮尾重算 scores/ranks。
+  - RelaySite 加 status_changed_at（时间型转移用）+ 手写迁移；review_site 通过时打戳；seed_demo 同步打戳。
+  - 18 测试（http_probe 6 + state_machine 12 + scoring 12 + worker_round 5，MockTransport/sqlite/纯函数）。后端共 65 passed。
+- 排行榜展示：GET /rank?leaderboard=&sort=（游客可读、无鉴权，主榜 online/abnormal/revived + 观察区 observing 分列、坟场状态不上榜、sort=composite|speed|uptime、null 分垫底）；schemas/rank、services/rank_service(只读预计算分 join 站点)、routes/rank；前端 URL /leaderboard→/rank(blueprint SEO 永久结构)、/rank/[family] 服务端渲染(RSC + 动态 metadata + JSON-LD ItemList、三 Tab + 排序、桌面表格/窄屏卡片、观察区区块)；seed_demo.py 演示数据脚本(幂等 + --wipe，5 站含各状态 + 三榜权重)；9 测试(后端共 30 passed)。
+- 管理员审核：GET /admin/sites/pending、POST /admin/sites/{id}/approve|reject；pending→observing(通过)/rejected(驳回，必填理由写 review_note 回传站长)；get_current_admin 依赖；RelaySite 加 review_note 字段 + 手写迁移(PG 当时不可达)；前端 /admin 后台页(待审卡片含站长联系方式+通过/驳回)、站长端显示驳回理由；8 测试(后端共 21 passed)。
 - 站点上架（站长端）：POST /sites、GET /sites/mine；key Fernet 加密落库只回掩码；slug 去重；/owner 控制台；修复 SoftDeleteManager 共享串表 bug。
 - 主框架顶栏布局：AuthProvider 全局登录态、Navbar 响应式、UserMenu、SiteShell；首页改简洁落地页；占位路由若干。
 - 创建管理员脚本 app/scripts/create_admin.py（getpass 隐藏输入、EmailStr 校验、admin 仅脚本可建）。
