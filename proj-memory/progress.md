@@ -1,5 +1,54 @@
 # 进度
 
+## 2026-06-29（续5：站点详情页打通——闭合榜单死链）
+
+### Completed
+
+- 站点详情页 `/site/{slug}`（features.md 第 4 节三屏分区 + 可见性表），无新 DB 列/迁移：
+  - 后端 `schemas/site_detail.py`：`SitePublicView`（游客字段 + uptime_history/uptime_30d +
+    verified + 各榜 scores）、`UptimePoint`、`SiteScoreBrief`、`SiteGatedView`（min_topup/
+    pay_methods/rpm_limit + ttfb_p50/p90）。**红线：两者都绝不含 base_url/key/key_hint。**
+  - `services/site_detail_service.py`：`get_public_detail`（pending/rejected 不公开→404）、
+    `compute_uptime_history`（近 30 天逐日分桶 alive+triggered，**复用 probe_stats._in_maintenance_window
+    剔除维护窗失败**红线，无样本当天记 None 不补 0）、`get_gated_detail`（质量探测 TTFB 分位）。
+  - `routes/sites.py`：`GET /sites/{slug}`（无鉴权，吃 SEO，SSR）+ `GET /sites/{slug}/private`
+    （get_current_user，401→前端转化钩子）。**声明在 /mine 之后，确保字面量优先匹配**（已验证路由序）。
+  - 前端 `app/site/[slug]/page.tsx`（RSC SSR + ISR 60s）：信任卡（风险灯+存活时长+最近探测+30 天
+    在线率曲线，**纯内联柱状图不引图表库**+已验证可用）/ 性能区（模型清单游客可见）/ 决策区（GatedPanel）；
+    动态 generateMetadata + JSON-LD WebPage（评价上线再补 AggregateRating）；404 走 notFound、
+    后端不可达兜底（区分真 404）。`gated-panel.tsx` 客户端组件：读 getToken()，无 token 渲染登录转化钩子，
+    有则拉 /private 渲染硬信息。坟场措辞红线：风险灯说明只陈述探测事实。
+  - **闭合榜单死链**：rank 页主榜/移动卡/观察区站名全部 `<Link href={/site/slug}>`。
+  - `lib/api.ts`：siteApi.publicDetail/privateDetail + 全套类型。
+  - seed_demo 补探测时序：每站 ~30 天 alive 探测（按 downtime_ratio 确定式掺失败，幂等可复现）+
+    在线/异常/复活站每天 1 条成功 quality 探测（TTFB+is_authentic）；站补 first_seen_at/last_probe_at/
+    硬信息；--wipe 同步清 probe_results。已在 sqlite 验证（stellar 98.9%/quasar 66.7%/comet observing
+    无质量探测 verified=False，幂等二次跑全跳过）。
+- 测试：`tests/test_site_detail.py` 10 测试（公开字段+无 key/base_url 泄露/在线率分桶/维护窗剔除/
+  verified/pending 404/未知 404/gated 401/登录见硬信息+不泄露/gated 404）。后端共 **75 passed**，ruff 通过。
+  前端 lint + build 均过（/site/[slug] 为 ƒ 动态 SSR）。
+
+### Current State（存档点 2026-06-29 续5）
+
+- 全 C 端浏览链路闭合：榜单 → 点站名 → 详情页（信任卡/性能/决策三屏，游客 SEO + 登录硬信息）。
+- **Git 状态：本功能待提交（feat/hero 分支，尚未 push）。** 之前三提交见续4。
+- 尚无：坟场页、评价、集市；质量探测预算扣减；Redis ZSET（直读 PG 够用）。
+
+### Next Steps（下次从这里挑）
+
+- 坟场页 `/graveyard`（suspected_dead/dead 站，复用详情页客观措辞；详情页布局已成型可复用）。
+- C 端评价（充值 key 自证 verified）→ 喂 review_score（scoring 已留口子）。
+- 中转集市（B 端发帖/对接/确认 + 互评解锁）。
+- 质量探测预算扣减（probe_budget_daily>0 时按当日已用降频）。
+- PG/上游恢复后：`aerich upgrade`（review_note + status_changed_at 两迁移）+ seed_demo + 真实联调。
+
+### 环境 / 联调要点（沿用）
+
+- 后端 8010：`cd backend && poetry run uvicorn app.main:app --port 8010`；worker：`python -m app.worker.scheduler`
+- 前端：`cd frontend && npm run dev`（.env.local 指向 http://192.168.142.129:8010）
+- 演示数据：`poetry run python -m app.scripts.seed_demo`（需可达 PG；--wipe 清理）。详情页访问 `/site/stellar-relay`。
+- 测试管理员：admin@example.com / RouterHub@2026；admin 只能脚本造。
+
 ## 2026-06-29（续4：探测 worker 打通——技术核心）
 
 ### Completed
@@ -31,6 +80,11 @@
 - 探测 worker 逻辑完整：能真实打上游、判状态机、算分刷 site_scores，喂给已就绪的 /rank。
 - 全链路：注册→上架→审核→**探测产出真实分**→榜单展示，闭环（探测在 sqlite+MockTransport 验证，
   实跑待 PG/上游可达）。
+- **Git 状态：本会话三功能已分 3 提交、工作区干净，均在 feat/hero 分支「尚未 push」**：
+  - `57c18fb` 探测 worker（真实探测+状态机+评分）
+  - `1e4d6fe` 排行榜展示页（三分榜 SSR + 只读接口）
+  - `e085b33` 管理员站点审核（pending→observing/rejected）
+  - 回来后若要推远程：`git push -u origin feat/hero`。
 - 尚无：详情页、坟场页、评价、集市；Redis ZSET（/rank 直读 PG 够用，ZSET 作缓存优化记 TODO）。
 
 ### Next Steps（下次从这里挑）

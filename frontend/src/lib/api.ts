@@ -161,11 +161,71 @@ export type SiteAdminView = SiteOwnerView & {
   created_at: string;
 };
 
+// 站点详情（与后端 schemas/site_detail.py 对应）
+
+// 在线率曲线一个点；uptime 为 null 表示当天无样本（前端断点，不画成 0）
+export type UptimePoint = {
+  date: string; // YYYY-MM-DD
+  uptime: number | null;
+};
+
+// 该站在某分榜的综合分/名次摘要
+export type SiteScoreBrief = {
+  leaderboard: string;
+  composite_score: number | null;
+  rank: number | null;
+};
+
+// 游客可见详情（SSR）：绝不含 base_url / key / 硬信息
+export type SitePublicView = {
+  site_id: string;
+  name: string;
+  slug: string;
+  site_url: string | null;
+  status: string;
+  declared_models: string[] | null;
+  first_seen_at: string | null;
+  listed_at: string;
+  last_probe_at: string | null;
+  verified: boolean;
+  uptime_30d: number | null;
+  uptime_history: UptimePoint[];
+  scores: SiteScoreBrief[];
+};
+
+// 登录可见硬信息：决策区 + 实测延迟（仍不含 key / base_url）
+export type SiteGatedView = {
+  site_id: string;
+  slug: string;
+  min_topup: string | null;
+  pay_methods: string | null;
+  rpm_limit: number | null;
+  ttfb_p50_ms: number | null;
+  ttfb_p90_ms: number | null;
+  latency_samples: number;
+};
+
 export const siteApi = {
   create: (payload: SiteCreatePayload, token: string) =>
     request<SiteOwnerView>("/sites", { method: "POST", body: payload, token }),
 
   mine: (token: string) => request<SiteOwnerView[]>("/sites/mine", { token }),
+
+  /**
+   * 站点详情（游客可见部分）。吃 SEO，故走 SSR + ISR（默认 60s 重验证）。
+   * 404（不存在/未公开）抛 ApiError(404)，由页面转 notFound。
+   */
+  publicDetail: (slug: string) =>
+    request<SitePublicView>(`/sites/${encodeURIComponent(slug)}`, {
+      revalidate: 60,
+    }),
+
+  /**
+   * 站点硬信息（登录可见）：决策区 + 实测延迟。
+   * 未登录后端抛 401，前端据此渲染注册转化钩子。
+   */
+  privateDetail: (slug: string, token: string) =>
+    request<SiteGatedView>(`/sites/${encodeURIComponent(slug)}/private`, { token }),
 };
 
 // ===== 管理员审核（与后端 routes/admin.py 对应） =====

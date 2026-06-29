@@ -231,7 +231,9 @@ function MainBoard({ entries, sort }: { entries: RankEntry[]; sort: RankSort }) 
                 <td className="px-4 py-3 font-mono text-muted-foreground">{e.rank ?? i + 1}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{e.name}</span>
+                    <Link href={`/site/${e.slug}`} className="font-medium hover:text-primary hover:underline">
+                      {e.name}
+                    </Link>
                     <StatusBadge status={e.status} />
                   </div>
                 </td>
@@ -252,7 +254,9 @@ function MainBoard({ entries, sort }: { entries: RankEntry[]; sort: RankSort }) 
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-sm text-muted-foreground">#{e.rank ?? i + 1}</span>
-                <span className="font-medium">{e.name}</span>
+                <Link href={`/site/${e.slug}`} className="font-medium hover:text-primary hover:underline">
+                  {e.name}
+                </Link>
               </div>
               <StatusBadge status={e.status} />
             </div>
@@ -315,7 +319,9 @@ function ObservingBoard({ entries }: { entries: RankEntry[] }) {
         {entries.map((e) => (
           <div key={e.site_id} className="rounded-xl border border-border bg-card p-4">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-medium">{e.name}</span>
+              <Link href={`/site/${e.slug}`} className="font-medium hover:text-primary hover:underline">
+                {e.name}
+              </Link>
               <StatusBadge status={e.status} />
             </div>
             <dl className="mt-3 grid grid-cols-3 gap-2 text-center">

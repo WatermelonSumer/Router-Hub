@@ -15,12 +15,14 @@
 import argparse
 import asyncio
 import sys
+from datetime import timedelta
 
 from tortoise import Tortoise, timezone
 
 from app.core.db import TORTOISE_ORM
 from app.core.security import encrypt_key, mask_key
 from app.models.leaderboard_weight import LeaderboardWeight
+from app.models.probe_result import ProbeResult
 from app.models.relay_site import RelaySite
 from app.models.site_score import SiteScore
 
@@ -39,12 +41,20 @@ _WEIGHTS = {
 
 # 演示站点：slug 为幂等锚。每站给定状态 + 各榜分数（缺则该榜不出现）。
 # scores: {leaderboard: (uptime, speed, authenticity, review, composite)}
+# downtime_ratio：演示用，每日 alive 探测中失败的占比（驱动详情页在线率曲线）。
+# 硬信息（min_topup/pay_methods/rpm_limit）供详情页决策区（登录可见）。
 _DEMO_SITES = [
     {
         "name": "StellarRelay",
         "slug": "stellar-relay",
         "status": "online",
         "models": ["claude-3-5-sonnet", "gpt-4o", "gemini-1.5-pro"],
+        "alive_days": 120,
+        "downtime_ratio": 0.01,
+        "ttfb_base": 280,
+        "min_topup": "20.00",
+        "pay_methods": "支付宝 / 微信 / USDT",
+        "rpm_limit": 200,
         "scores": {
             "claude": (98, 86, 99, 92, 96.1),
             "gpt": (98, 86, 95, 92, 94.3),
@@ -56,6 +66,12 @@ _DEMO_SITES = [
         "slug": "nova-gateway",
         "status": "online",
         "models": ["claude-3-5-sonnet", "gpt-4o"],
+        "alive_days": 60,
+        "downtime_ratio": 0.05,
+        "ttfb_base": 420,
+        "min_topup": "50.00",
+        "pay_methods": "支付宝 / USDT",
+        "rpm_limit": 120,
         "scores": {
             "claude": (95, 92, 90, 80, 91.5),
             "gpt": (95, 92, 88, 80, 91.2),
@@ -66,6 +82,12 @@ _DEMO_SITES = [
         "slug": "quasar-hub",
         "status": "abnormal",
         "models": ["gpt-4o", "gemini-1.5-pro"],
+        "alive_days": 45,
+        "downtime_ratio": 0.30,  # 异常站：近期波动明显
+        "ttfb_base": 900,
+        "min_topup": "100.00",
+        "pay_methods": "USDT",
+        "rpm_limit": 60,
         "scores": {
             "gpt": (72, 78, 80, 70, 75.4),
             "gemini": (72, 78, 80, 70, 74.0),
@@ -76,6 +98,12 @@ _DEMO_SITES = [
         "slug": "pulsar-api",
         "status": "online",
         "models": ["claude-3-5-sonnet"],
+        "alive_days": 90,
+        "downtime_ratio": 0.03,
+        "ttfb_base": 350,
+        "min_topup": "30.00",
+        "pay_methods": "支付宝",
+        "rpm_limit": 100,
         "scores": {
             "claude": (88, 70, 94, 60, 87.4),
         },
@@ -85,7 +113,9 @@ _DEMO_SITES = [
         "slug": "comet-proxy",
         "status": "observing",
         "models": ["claude-3-5-sonnet", "gpt-4o"],
-        # 观察区新站：暂无速度数据（null），考验缺失数据展示
+        "alive_days": 4,  # 观察区新站：样本少
+        "downtime_ratio": 0.02,
+        "ttfb_base": None,  # 暂无质量探测
         "scores": {
             "claude": (90, None, 85, None, 88.0),
             "gpt": (90, None, 82, None, 86.5),
@@ -100,6 +130,7 @@ async def _wipe() -> None:
     site_ids = [s.site_id for s in sites]
     if site_ids:
         await SiteScore.all_objects().filter(site_id__in=site_ids).delete()
+        await ProbeResult.all_objects().filter(site_id__in=site_ids).delete()
     await RelaySite.all_objects().filter(owner_id=_DEMO_OWNER_ID).delete()
     print(f"已清除 {len(site_ids)} 个演示站点及其分数。")
 
@@ -113,6 +144,60 @@ async def _seed_weights() -> None:
             print(f"  权重 {board} 已创建")
         else:
             print(f"  权重 {board} 已存在，跳过")
+
+
+async def _seed_probes(site: RelaySite, spec: dict) -> None:
+    """为演示站补探测时序数据，让详情页有在线率曲线 / 最近探测 / 已验证可用。
+
+    幂等：已有探测记录则跳过。每天若干条 alive 探测（按 downtime_ratio 掺失败），
+    在线站每天 1 条成功 quality 探测（带 TTFB + is_authentic）。
+    """
+    if await ProbeResult.filter(site_id=site.site_id).exists():
+        print(f"    {site.name} 已有探测记录，跳过")
+        return
+
+    now = timezone.now()
+    days = min(int(spec.get("alive_days", 30)), 30)  # 曲线只展示近 30 天
+    downtime = float(spec.get("downtime_ratio", 0.02))
+    ttfb_base = spec.get("ttfb_base")
+    rows: list[ProbeResult] = []
+
+    per_day = 6  # 每天 6 条 alive 探测（每 4 小时一次的简化）
+    fail_every = max(1, round(1 / downtime)) if downtime > 0 else 0
+    for d in range(days):
+        for h in range(per_day):
+            # 确定式决定该次是否失败（幂等可复现，不引随机）
+            fail = fail_every > 0 and ((d * per_day + h) % fail_every == 0)
+            rows.append(
+                ProbeResult(
+                    site_id=site.site_id,
+                    probe_type="alive",
+                    probed_at=now - timedelta(days=d, hours=h * 4),
+                    is_alive=not fail,
+                    http_status=200 if not fail else 503,
+                )
+            )
+        # 在线/异常/复活站每天一条成功质量探测（带 TTFB）
+        if ttfb_base is not None and spec["status"] in ("online", "abnormal", "revived"):
+            jitter = (d % 5) * 30  # 轻微抖动，制造 TTFB 分布
+            rows.append(
+                ProbeResult(
+                    site_id=site.site_id,
+                    probe_type="quality",
+                    probed_at=now - timedelta(days=d, hours=1),
+                    target_model=(spec["models"][0] if spec.get("models") else None),
+                    is_alive=True,
+                    is_authentic=True,
+                    ttfb_ms=ttfb_base + jitter,
+                    total_ms=ttfb_base + jitter + 200,
+                    http_status=200,
+                )
+            )
+
+    await ProbeResult.bulk_create(rows)
+    site.last_probe_at = now
+    await site.save(update_fields=["last_probe_at", "updated_at"])
+    print(f"    {site.name} 已补 {len(rows)} 条探测记录")
 
 
 async def _seed_sites() -> None:
@@ -131,10 +216,17 @@ async def _seed_sites() -> None:
                 declared_models=spec["models"],
                 status=spec["status"],
                 status_changed_at=timezone.now(),
+                # 演示用：上架/最早探测时间往前推，详情页才有「存活时长」
+                first_seen_at=timezone.now() - timedelta(days=spec.get("alive_days", 30)),
+                min_topup=spec.get("min_topup"),
+                pay_methods=spec.get("pay_methods"),
+                rpm_limit=spec.get("rpm_limit"),
             )
             print(f"  站点 {spec['name']} 已创建（{spec['status']}）")
         else:
             print(f"  站点 {spec['name']} 已存在，跳过建站")
+
+        await _seed_probes(site, spec)
 
         for board, (uptime, speed, auth, review, composite) in spec["scores"].items():
             score = await SiteScore.filter(
