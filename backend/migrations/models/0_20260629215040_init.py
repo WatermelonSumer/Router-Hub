@@ -104,6 +104,8 @@ CREATE TABLE IF NOT EXISTS "relay_sites" (
     "pay_methods" VARCHAR(256),
     "rpm_limit" INT,
     "status" VARCHAR(24) NOT NULL  DEFAULT 'pending',
+    "review_note" TEXT,
+    "status_changed_at" TIMESTAMPTZ,
     "maintenance_windows" JSONB,
     "first_seen_at" TIMESTAMPTZ,
     "last_probe_at" TIMESTAMPTZ
@@ -174,11 +176,7 @@ CREATE TABLE IF NOT EXISTS "aerich" (
     "version" VARCHAR(255) NOT NULL,
     "app" VARCHAR(100) NOT NULL,
     "content" JSONB NOT NULL
-);
--- 业务唯一性走 partial unique index：仅对未假删除的行生效，
--- 使邮箱/slug 在假删除后可被重新使用（见 blueprint 第三节通用约定第 3 条）。
-CREATE UNIQUE INDEX IF NOT EXISTS "uq_users_email_active" ON "users" ("email") WHERE "is_deleted" = false;
-CREATE UNIQUE INDEX IF NOT EXISTS "uq_relay_sites_slug_active" ON "relay_sites" ("slug") WHERE "is_deleted" = false;"""
+);"""
 
 
 async def downgrade(db: BaseDBAsyncClient) -> str:
