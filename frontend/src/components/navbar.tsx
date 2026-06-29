@@ -45,15 +45,15 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-lg">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4">
+      <div className="relative mx-auto flex h-14 max-w-6xl items-center gap-4 px-4">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 font-semibold">
           <ShieldCheck className="size-5 text-primary" />
           <span className="tracking-tight">Router-Hub</span>
         </Link>
 
-        {/* 桌面导航 */}
-        <nav className="hidden items-center gap-1 md:flex">
+        {/* 桌面导航：绝对居中，不受 Logo / 右侧宽度影响 */}
+        <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 md:flex">
           {NAV_ITEMS.map((item) => (
             <Link
               key={item.href}
