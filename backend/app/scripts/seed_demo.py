@@ -20,15 +20,37 @@ from datetime import timedelta
 from tortoise import Tortoise, timezone
 
 from app.core.db import TORTOISE_ORM
-from app.core.security import encrypt_key, mask_key
+from app.core.security import encrypt_key, hash_password, mask_key
 from app.models.leaderboard_weight import LeaderboardWeight
+from app.models.marketplace_post import MarketplacePost
 from app.models.probe_result import ProbeResult
 from app.models.relay_site import RelaySite
 from app.models.site_score import SiteScore
+from app.models.user import User
 
 # 演示数据统一锚定一个假 owner_id（不建真实用户，避免污染登录）
 _DEMO_OWNER_ID = "00000000-0000-0000-0000-0000000000de"
 _DEMO_KEY = "sk-demo-placeholder-0000"  # 占位假 key，仅为走通加密路径
+
+# 集市演示站长（真实 User，才能发帖 + 换名片）。密码统一 demo1234。
+_MARKET_OWNERS = [
+    {"email": "demo-seller@routerhub.local", "wechat": "wx_seller", "qq": "60001"},
+    {"email": "demo-buyer@routerhub.local", "wechat": "wx_buyer", "qq": "60002"},
+]
+_MARKET_OWNER_PASSWORD = "demo1234"
+
+# 集市演示帖：挂在 demo-seller 名下（按 email 锚定）
+_MARKET_POSTS = [
+    dict(post_type="supply", direction="upstream", model_family="claude",
+         rate="0.05", rpm=200, volume="日均 100w", settlement="weekly",
+         note="claude 上游放量，稳定 200rpm"),
+    dict(post_type="supply", direction="downstream", model_family="gpt",
+         rate="0.08", rpm=120, volume="日均 50w", settlement="daily",
+         note="gpt 下游出货，日结"),
+    dict(post_type="demand", direction="upstream", model_family="gemini",
+         rate="0.10", rpm=60, volume="按量", settlement="prepaid",
+         note="求 gemini 上游，预付"),
+]
 
 # 三榜权重（blueprint 3.3：Claude 抬真实性 / GPT 抬在线率价格 / Gemini 抬在线率）
 _WEIGHTS = {
@@ -287,16 +309,61 @@ async def _recompute_ranks() -> None:
             await s.save(update_fields=["rank", "updated_at"])
 
 
+async def _seed_market() -> None:
+    """幂等填充集市演示站长（真实 User）+ 演示帖（挂 demo-seller 名下）。"""
+    owner_map = {}
+    for spec in _MARKET_OWNERS:
+        u = await User.filter(email=spec["email"]).first()
+        if u is None:
+            u = await User.create(
+                email=spec["email"],
+                password_hash=hash_password(_MARKET_OWNER_PASSWORD),
+                role="owner",
+                wechat=spec["wechat"],
+                qq=spec["qq"],
+            )
+            print(f"  集市站长 {spec['email']} 已创建")
+        else:
+            print(f"  集市站长 {spec['email']} 已存在，跳过")
+        owner_map[spec["email"]] = u
+
+    seller = owner_map["demo-seller@routerhub.local"]
+    # 演示帖（以 note 为幂等锚，避免重复造）
+    for spec in _MARKET_POSTS:
+        existing = await MarketplacePost.filter(
+            author_id=seller.user_id, note=spec["note"]
+        ).first()
+        if existing is None:
+            await MarketplacePost.create(author_id=seller.user_id, status="open", **spec)
+            print(f"  集市帖已创建：{spec['model_family']} {spec['post_type']}")
+        else:
+            print(f"  集市帖已存在，跳过：{spec['model_family']} {spec['post_type']}")
+
+
+async def _wipe_market() -> None:
+    """物理删除集市演示数据（站长 + 其帖子）。"""
+    emails = [o["email"] for o in _MARKET_OWNERS]
+    owners = await User.all_objects().filter(email__in=emails)
+    owner_ids = [o.user_id for o in owners]
+    if owner_ids:
+        await MarketplacePost.all_objects().filter(author_id__in=owner_ids).delete()
+        await User.all_objects().filter(user_id__in=owner_ids).delete()
+    print(f"已清除 {len(owner_ids)} 个集市演示站长及其帖子。")
+
+
 async def _run(wipe: bool) -> int:
     """连接数据库并填充演示数据。"""
     await Tortoise.init(config=TORTOISE_ORM)
     try:
         if wipe:
             await _wipe()
+            await _wipe_market()
         print("填充三榜权重：")
         await _seed_weights()
         print("填充演示站点与分数：")
         await _seed_sites()
+        print("填充集市演示数据：")
+        await _seed_market()
         print("完成。访问 /rank?leaderboard=claude 查看。")
         return 0
     finally:

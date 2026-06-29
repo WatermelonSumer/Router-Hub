@@ -1,5 +1,39 @@
 # 进度
 
+## 2026-06-30（续9：中转集市阶段1——发帖+浏览筛选+对接撮合）
+
+### Completed
+
+- **中转集市 /market**（B 端，features.md 第 8/9 节，登录墙后刻意不 SEO）。模型骨架
+  （marketplace_posts/post_responses）早已就绪，本次补 API + UI 层，形成发帖→对接→换名片闭环：
+  - 后端：`schemas/marketplace.py`（PostCreate/PostView/ResponseView/ContactCard/OwnerReputation）；
+    `services/marketplace_service.py`（create_post 枚举校验、list_posts 多维筛选 + N+1 去重批量算履历、
+    close_post、respond_to_post 幂等/不能对接自己/关闭帖不可对接、confirm_response、
+    list_my_responses/list_responses_to_my_posts，**confirmed 才换名片**红线；reputation_for 沿用 C 端征信）；
+    `routes/market.py`（全程 **get_current_owner 登录墙**：POST /market/posts、GET /market/posts 筛选、
+    close、respond、confirm、responses/mine、responses/incoming）注册进 router。
+  - 前端：`marketApi` + 全套类型；`/market` 替换 ComingSoon → 登录墙（仅 owner，普通用户/游客拦截）+
+    浏览/发帖 tab（发帖折叠表单 + 多维筛选条 + 帖子卡片挂**探测履历名片**：最高分/最长存活/在册数/坟场污点）
+    + 我的对接 tab（收到的对接可确认、确认后双方互见名片）。拆 page.tsx + parts.tsx。
+  - seed_demo 补集市：两个真实演示站长（demo-seller/demo-buyer@routerhub.local，密码 demo1234，
+    带 wechat/qq）+ 3 演示帖（claude/gpt 供给、gemini 需求），按 email/note 幂等锚，--wipe 同步清。
+- 测试：`tests/test_marketplace.py` 12 测试（发帖/枚举 422/owner 墙/多维筛选/max_rate/关帖/越权关帖 403/
+  不能对接自己 400/对接 pending 无名片/confirmed 双方换名片/越权确认 403/关闭帖对接 409）。
+  后端共 **97 passed**，ruff 通过；前端 lint+build 通过。
+
+### Current State（存档点 2026-06-30 续9）
+
+- 集市阶段 1 闭环：发帖 → 浏览筛选（带履历名片）→ 对接 pending → 发帖人确认 confirmed → 换微信/QQ 名片。
+- **新接口需 VM 后端重载才生效**；集市演示数据需在 VM 重跑 seed_demo（会建两个 demo 站长账号）。
+- **Git：本次（续9）改动待提交（feat/hero）。**
+
+### Next Steps（下次从这里挑）
+
+- **集市阶段 2/3**：对接的 connected 中间态通知；**B 端互评**（confirmed 解锁 owner_deal 评价 →
+  写 reviews，与 C 端评价共用 review_score，scoring 已留口子）。
+- C 端评价（待中转站提供 root key 查充值接口的前提具备后再做）。
+- 站点编辑/下架；worker 在 VM 常驻。
+
 ## 2026-06-30（续8：坟场页打通——传播引爆点 + SEO 富矿）
 
 ### Completed

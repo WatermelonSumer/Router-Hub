@@ -317,3 +317,103 @@ export const graveyardApi = {
    */
   list: () => request<GraveyardResponse>("/graveyard", { revalidate: 60 }),
 };
+
+// ===== 中转集市（与后端 schemas/marketplace.py 对应） =====
+// 红线：B 端登录墙后，刻意不 SEO；联系方式仅对接 confirmed 后交换。
+
+export type PostType = "supply" | "demand";
+export type Direction = "upstream" | "downstream";
+export type Settlement = "daily" | "weekly" | "prepaid";
+
+// 发帖站长探测履历名片（沿用 C 端征信，不含联系方式）
+export type OwnerReputation = {
+  best_composite: number | null;
+  max_alive_days: number | null;
+  site_count: number;
+  graveyard_count: number;
+};
+
+export type PostView = {
+  post_id: string;
+  author_id: string;
+  post_type: string;
+  direction: string;
+  model_family: string;
+  rate: string | null;
+  rpm: number | null;
+  volume: string | null;
+  settlement: string | null;
+  note: string | null;
+  status: string; // open | closed
+  created_at: string;
+  is_mine: boolean;
+  author_reputation: OwnerReputation;
+};
+
+// 对接 confirmed 后交换的名片（仅此处含联系方式）
+export type ContactCard = {
+  user_id: string;
+  email: string;
+  wechat: string | null;
+  qq: string | null;
+};
+
+export type ResponseView = {
+  response_id: string;
+  post_id: string;
+  responder_id: string;
+  status: string; // pending | connected | confirmed
+  created_at: string;
+  contact: ContactCard | null; // confirmed 才给
+};
+
+export type PostCreatePayload = {
+  post_type: PostType;
+  direction: Direction;
+  model_family: RankFamily;
+  rate?: string;
+  rpm?: number;
+  volume?: string;
+  settlement?: Settlement;
+  note?: string;
+};
+
+export type PostFilter = {
+  post_type?: string;
+  direction?: string;
+  model_family?: string;
+  max_rate?: string;
+};
+
+export const marketApi = {
+  create: (payload: PostCreatePayload, token: string) =>
+    request<PostView>("/market/posts", { method: "POST", body: payload, token }),
+
+  list: (filter: PostFilter, token: string) => {
+    const qs = new URLSearchParams();
+    if (filter.post_type) qs.set("post_type", filter.post_type);
+    if (filter.direction) qs.set("direction", filter.direction);
+    if (filter.model_family) qs.set("model_family", filter.model_family);
+    if (filter.max_rate) qs.set("max_rate", filter.max_rate);
+    const q = qs.toString();
+    return request<PostView[]>(`/market/posts${q ? `?${q}` : ""}`, { token });
+  },
+
+  close: (postId: string, token: string) =>
+    request<PostView>(`/market/posts/${postId}/close`, { method: "POST", token }),
+
+  respond: (postId: string, token: string) =>
+    request<ResponseView>(`/market/posts/${postId}/respond`, { method: "POST", token }),
+
+  confirm: (responseId: string, token: string) =>
+    request<ResponseView>(`/market/responses/${responseId}/confirm`, {
+      method: "POST",
+      token,
+    }),
+
+  myResponses: (token: string) =>
+    request<ResponseView[]>("/market/responses/mine", { token }),
+
+  incomingResponses: (token: string) =>
+    request<ResponseView[]>("/market/responses/incoming", { token }),
+};
