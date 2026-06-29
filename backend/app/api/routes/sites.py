@@ -28,6 +28,7 @@ def _to_owner_view(site: RelaySite) -> SiteOwnerView:
         site_url=site.site_url,
         key_hint=site.key_hint,
         status=site.status,
+        review_note=site.review_note,
         declared_models=site.declared_models,
         min_topup=site.min_topup,
         pay_methods=site.pay_methods,

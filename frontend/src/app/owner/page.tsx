@@ -31,6 +31,7 @@ const STATUS_META: Record<string, { label: string; className: string }> = {
   suspected_dead: { label: "疑似阵亡", className: "bg-red-500/15 text-red-600 dark:text-red-400" },
   dead: { label: "已阵亡", className: "bg-red-500/20 text-red-700 dark:text-red-400" },
   revived: { label: "复活", className: "bg-violet-500/15 text-violet-600 dark:text-violet-400" },
+  rejected: { label: "已驳回", className: "bg-rose-500/15 text-rose-600 dark:text-rose-400" },
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -206,6 +207,12 @@ function SiteCard({ site }: { site: SiteOwnerView }) {
           </div>
         )}
       </dl>
+      {site.status === "rejected" && site.review_note && (
+        <div className="mt-3 rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-600 dark:text-rose-400">
+          <span className="font-medium">驳回理由：</span>
+          {site.review_note}
+        </div>
+      )}
     </div>
   );
 }

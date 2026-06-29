@@ -22,11 +22,13 @@ type RequestOptions = {
   method?: string;
   body?: unknown;
   token?: string | null;
+  // 服务端组件（RSC）用：Next.js ISR 重验证秒数。仅服务端 fetch 生效。
+  revalidate?: number;
 };
 
 /** 通用请求：自动拼 baseURL、带 JSON 头、附 Bearer 令牌、解析错误。 */
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = "GET", body, token } = options;
+  const { method = "GET", body, token, revalidate } = options;
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -37,6 +39,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
+      ...(revalidate !== undefined ? { next: { revalidate } } : {}),
     });
   } catch {
     // 网络层失败（后端没起、断网、CORS 预检失败等）
@@ -142,10 +145,20 @@ export type SiteOwnerView = {
   site_url: string | null;
   key_hint: string;
   status: string;
+  review_note: string | null;
   declared_models: string[] | null;
   min_topup: string | null;
   pay_methods: string | null;
   rpm_limit: number | null;
+};
+
+// 管理员审核视角：站长字段 + 站长联系方式 + 上架时间（仍不含 key）
+export type SiteAdminView = SiteOwnerView & {
+  owner_id: string;
+  owner_email: string | null;
+  owner_wechat: string | null;
+  owner_qq: string | null;
+  created_at: string;
 };
 
 export const siteApi = {
@@ -153,4 +166,24 @@ export const siteApi = {
     request<SiteOwnerView>("/sites", { method: "POST", body: payload, token }),
 
   mine: (token: string) => request<SiteOwnerView[]>("/sites/mine", { token }),
+};
+
+// ===== 管理员审核（与后端 routes/admin.py 对应） =====
+
+export const adminApi = {
+  pending: (token: string) =>
+    request<SiteAdminView[]>("/admin/sites/pending", { token }),
+
+  approve: (siteId: string, token: string) =>
+    request<SiteOwnerView>(`/admin/sites/${siteId}/approve`, {
+      method: "POST",
+      token,
+    }),
+
+  reject: (siteId: string, note: string, token: string) =>
+    request<SiteOwnerView>(`/admin/sites/${siteId}/reject`, {
+      method: "POST",
+      body: { note },
+      token,
+    }),
 };

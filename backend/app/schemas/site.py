@@ -52,7 +52,41 @@ class SiteOwnerView(BaseModel):
     site_url: str | None
     key_hint: str
     status: str
+    review_note: str | None  # 被驳回时的理由，站长可见
     declared_models: list[str] | None
     min_topup: Decimal | None
     pay_methods: str | None
     rpm_limit: int | None
+
+
+class SiteAdminView(BaseModel):
+    """管理员审核视角：在站长字段基础上附站长联系方式与上架时间。
+
+    红线：联系方式默认隐藏，此处仅对 admin 角色开放，供审核触达站长；
+    仍绝不含明文/密文 key。
+    """
+
+    site_id: str
+    name: str
+    slug: str
+    base_url: str
+    site_url: str | None
+    key_hint: str
+    status: str
+    review_note: str | None
+    declared_models: list[str] | None
+    min_topup: Decimal | None
+    pay_methods: str | None
+    rpm_limit: int | None
+    # 站长信息（审核触达用）
+    owner_id: str
+    owner_email: str | None
+    owner_wechat: str | None
+    owner_qq: str | None
+    created_at: str
+
+
+class SiteRejectRequest(BaseModel):
+    """管理员驳回站点的请求：必须给出理由，会回传给站长。"""
+
+    note: str = Field(min_length=1, max_length=512, description="驳回理由，站长可见")

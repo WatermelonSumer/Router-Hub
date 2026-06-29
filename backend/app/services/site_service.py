@@ -6,8 +6,11 @@
 
 import re
 
+from tortoise import timezone
+
 from app.core.security import encrypt_key, mask_key
 from app.models.relay_site import RelaySite
+from app.models.user import User
 
 
 class SiteError(Exception):
@@ -16,6 +19,14 @@ class SiteError(Exception):
 
 class SlugAlreadyExists(SiteError):
     """slug 已被占用（仅统计未假删除的站点）。"""
+
+
+class SiteNotFound(SiteError):
+    """目标站点不存在（或已假删除）。"""
+
+
+class SiteNotPending(SiteError):
+    """站点不处于 pending 状态，无法审核。"""
 
 
 def _slugify(name: str) -> str:
@@ -82,3 +93,43 @@ async def create_site(
 async def list_owner_sites(owner_id: str) -> list[RelaySite]:
     """列出某站长名下的全部站点（按创建时间倒序）。"""
     return await RelaySite.filter(owner_id=owner_id).order_by("-created_at")
+
+
+async def list_pending_sites() -> list[tuple[RelaySite, User | None]]:
+    """列出全部待审核站点，并附其站长（虚拟外键在 service 层关联）。
+
+    返回 (site, owner) 对；owner 可能为 None（站长已假删除等极端情况）。
+    按创建时间正序，便于先到先审。
+    """
+    sites = await RelaySite.filter(status="pending").order_by("created_at")
+    if not sites:
+        return []
+    owner_ids = {s.owner_id for s in sites}
+    owners = await User.filter(user_id__in=list(owner_ids))
+    owner_map = {str(o.user_id): o for o in owners}
+    return [(s, owner_map.get(str(s.owner_id))) for s in sites]
+
+
+async def review_site(site_id: str, *, approve: bool, note: str | None = None) -> RelaySite:
+    """管理员审核站点：通过→observing，驳回→rejected（写 review_note）。
+
+    仅 pending 站点可审核，否则抛 SiteNotPending；站点不存在抛 SiteNotFound。
+    """
+    site = await RelaySite.filter(site_id=site_id).first()
+    if site is None:
+        raise SiteNotFound(site_id)
+    if site.status != "pending":
+        raise SiteNotPending(site.status)
+
+    if approve:
+        site.status = "observing"
+        site.review_note = None
+        # 通过即进观察区，观察期计时从此刻起
+        site.status_changed_at = timezone.now()
+    else:
+        site.status = "rejected"
+        site.review_note = note
+    await site.save(
+        update_fields=["status", "review_note", "status_changed_at", "updated_at"]
+    )
+    return site

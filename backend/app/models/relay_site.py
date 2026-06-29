@@ -36,6 +36,8 @@ class RelaySite(BaseModel):
     rpm_limit = fields.IntField(null=True)
 
     status = fields.CharField(max_length=24, default="pending", db_index=True)
+    review_note = fields.TextField(null=True)  # admin 驳回理由（通过则为空），站长可见
+    status_changed_at = fields.DatetimeField(null=True)  # 进入当前状态的时刻（时间型转移条件用）
 
     maintenance_windows = fields.JSONField(null=True)  # 站长声明的维护窗，窗内失败不计在线率
 

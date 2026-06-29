@@ -56,3 +56,18 @@ async def get_current_owner(
             detail="仅站长可执行此操作",
         )
     return current_user
+
+
+async def get_current_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """要求当前用户为管理员（admin）；否则 403。
+
+    admin 只能由脚本创建（注册接口造不出），用于站点审核等平台运营动作。
+    """
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="仅管理员可执行此操作",
+        )
+    return current_user
