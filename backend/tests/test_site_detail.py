@@ -44,6 +44,7 @@ async def _make_site(slug="hub", status="online", **kwargs) -> RelaySite:
         maintenance_windows=kwargs.get("maintenance_windows"),
         first_seen_at=timezone.now() - timedelta(days=10),
         last_probe_at=timezone.now(),
+        status_changed_at=timezone.now() - timedelta(days=10),
     )
 
 
@@ -77,6 +78,7 @@ async def test_public_detail_basic(client):
     assert body["status"] == "online"
     assert body["declared_models"] == ["claude-3-5-sonnet", "gpt-4o"]
     assert body["listed_at"] is not None
+    assert body["status_changed_at"] is not None  # 坟场计时/「曾阵亡」起点
     assert body["scores"] == [
         {"leaderboard": "claude", "composite_score": 91.5, "rank": 2}
     ]

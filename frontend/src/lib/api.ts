@@ -187,6 +187,7 @@ export type SitePublicView = {
   first_seen_at: string | null;
   listed_at: string;
   last_probe_at: string | null;
+  status_changed_at: string | null;
   verified: boolean;
   uptime_30d: number | null;
   uptime_history: UptimePoint[];
@@ -288,4 +289,31 @@ export const rankApi = {
     request<RankResponse>(`/rank?leaderboard=${family}&sort=${sort}`, {
       revalidate: 60,
     }),
+};
+
+// ===== 坟场（与后端 schemas/graveyard.py 对应） =====
+
+export type GraveyardEntry = {
+  site_id: string;
+  name: string;
+  slug: string;
+  site_url: string | null;
+  status: string; // suspected_dead | dead
+  declared_models: string[] | null;
+  first_seen_at: string | null;
+  last_probe_at: string | null;
+  status_changed_at: string | null;
+};
+
+export type GraveyardResponse = {
+  suspected: GraveyardEntry[];
+  dead: GraveyardEntry[];
+};
+
+export const graveyardApi = {
+  /**
+   * 服务端组件用：拉坟场。吃 SEO，故走 SSR + ISR（默认 60s 重验证）。
+   * 失败时抛 ApiError，由页面兜底成空态。
+   */
+  list: () => request<GraveyardResponse>("/graveyard", { revalidate: 60 }),
 };

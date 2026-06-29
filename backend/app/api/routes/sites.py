@@ -114,6 +114,7 @@ async def public_detail(slug: str) -> SitePublicView:
         first_seen_at=_iso(site.first_seen_at),
         listed_at=site.created_at.isoformat(),
         last_probe_at=_iso(site.last_probe_at),
+        status_changed_at=_iso(site.status_changed_at),
         verified=data.verified,
         uptime_30d=data.uptime_30d,
         uptime_history=[UptimePoint(date=d, uptime=u) for d, u in data.uptime_history],

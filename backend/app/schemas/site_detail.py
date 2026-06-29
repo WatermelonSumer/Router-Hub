@@ -48,6 +48,7 @@ class SitePublicView(BaseModel):
     first_seen_at: str | None  # 最早被探测到的时刻
     listed_at: str  # 上架时间（created_at）
     last_probe_at: str | None  # 最近一次探测时间戳（「数据是活的」公信力）
+    status_changed_at: str | None  # 进入当前状态的时刻（坟场计时/「曾阵亡 X 天」起点）
 
     verified: bool  # MVP：是否有过成功的质量探测（真打通 chat）→「已验证可用✓」
 

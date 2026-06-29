@@ -121,6 +121,28 @@ _DEMO_SITES = [
             "gpt": (90, None, 82, None, 86.5),
         },
     },
+    {
+        "name": "MeteorAPI",
+        "slug": "meteor-api",
+        "status": "suspected_dead",  # 疑似跑路：连续多日探测失败
+        "models": ["gpt-4o"],
+        "alive_days": 50,
+        "dead_days_ago": 3,  # 3 天前进入疑似状态
+        "downtime_ratio": 1.0,  # 全失败
+        "ttfb_base": None,
+        "scores": {},  # 坟场站不上榜，无分数
+    },
+    {
+        "name": "VoidRelay",
+        "slug": "void-relay",
+        "status": "dead",  # 已确认阵亡
+        "models": ["claude-3-5-sonnet", "gpt-4o"],
+        "alive_days": 80,
+        "dead_days_ago": 9,  # 9 天前坐实阵亡
+        "downtime_ratio": 1.0,
+        "ttfb_base": None,
+        "scores": {},
+    },
 ]
 
 
@@ -215,7 +237,9 @@ async def _seed_sites() -> None:
                 key_hint=mask_key(_DEMO_KEY),
                 declared_models=spec["models"],
                 status=spec["status"],
-                status_changed_at=timezone.now(),
+                # 坟场站把进入当前状态时刻往前推，前端「连续失败 N 天」才有内容
+                status_changed_at=timezone.now()
+                - timedelta(days=spec.get("dead_days_ago", 0)),
                 # 演示用：上架/最早探测时间往前推，详情页才有「存活时长」
                 first_seen_at=timezone.now() - timedelta(days=spec.get("alive_days", 30)),
                 min_topup=spec.get("min_topup"),

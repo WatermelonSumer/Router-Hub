@@ -1,5 +1,39 @@
 # 进度
 
+## 2026-06-30（续8：坟场页打通——传播引爆点 + SEO 富矿）
+
+### Completed
+
+- **坟场页 /graveyard**（features.md 第 5 节，最大化复用详情页）：
+  - 关键复用：坟场站详情页早已可用（site_detail._PUBLIC_STATUSES 含 suspected_dead/dead，
+    详情页 STATUS_META 已写两态客观措辞），故本次只做**列表页 + 只读接口**，行链到已有详情页。
+  - 后端：公开 schema 补 status_changed_at（坟场计时/「曾阵亡」起点）；
+    `schemas/graveyard.py`（GraveyardEntry/Response，suspected/dead 两区，**无 key/base_url**）；
+    `services/graveyard_service.py`（只读筛坟场态、按 status_changed_at 倒序、分流，仿 rank_service）；
+    `routes/graveyard.py`（GET /graveyard 无鉴权吃 SEO）注册进 router。
+  - 前端：`graveyardApi` + 类型；SitePublicView 加 status_changed_at；
+    /graveyard 替换 ComingSoon → RSC SSR+ISR 两区块（疑似跑路/已确认阵亡），
+    每行「连续探测失败 N 天」(now-status_changed_at) + 曾存活天数 + 链到 /site/{slug}；
+    **客观措辞红线**（只陈述探测事实，不主观定性）；动态 metadata + JSON-LD ItemList；兜底空态。
+  - seed_demo 补两坟场站（MeteorAPI suspected_dead 3 天前 / VoidRelay dead 9 天前，全失败探测，
+    无分数），spec 加 dead_days_ago 控制 status_changed_at。
+- 测试：`tests/test_graveyard.py` 5 测试（分流/排序倒序/非坟场态排除/无 key 泄露/空坟场）+
+  test_site_detail 补 status_changed_at 断言。后端 **85 passed**，ruff 通过；前端 lint+build 通过。
+
+### Current State（存档点 2026-06-30 续8）
+
+- C 端浏览链路再扩：榜单 + 详情页 + **坟场**（疑似/阵亡两区，行链详情）。
+- **新接口 /graveyard 需 VM 后端重载才生效**（当前 VM 跑旧码返回 404，逻辑单测全绿）；
+  坟场演示站需在 VM 重跑 seed_demo 才有内容。
+- **Git：本次（续8）改动待提交（feat/hero）；之前 5 提交已 push（用户自行 push）。**
+
+### Next Steps（下次从这里挑）
+
+- C 端评价（充值 key 自证 verified → 喂 review_score，scoring 已留口子）。
+- 中转集市（B 端发帖/对接/确认 + 互评解锁）。
+- 站点编辑/下架（站长改 base_url/key/硬信息）。
+- worker 在 VM 常驻 + 重启后端使新接口生效 + 重跑 seed_demo。
+
 ## 2026-06-29（续7：管理员各状态总览 + 导航栏角色控制台入口）
 
 ### Completed

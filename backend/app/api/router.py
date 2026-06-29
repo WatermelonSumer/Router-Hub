@@ -5,7 +5,7 @@
 
 from fastapi import APIRouter
 
-from app.api.routes import admin, auth, health, rank, sites
+from app.api.routes import admin, auth, graveyard, health, rank, sites
 
 api_router = APIRouter()
 api_router.include_router(health.router)
@@ -13,3 +13,4 @@ api_router.include_router(auth.router)
 api_router.include_router(sites.router)
 api_router.include_router(admin.router)
 api_router.include_router(rank.router)
+api_router.include_router(graveyard.router)
