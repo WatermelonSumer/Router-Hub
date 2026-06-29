@@ -50,6 +50,9 @@ class PostView(BaseModel):
 
     post_id: str
     author_id: str
+    site_id: str | None  # 帖子绑定的站点（互评对象）；纯买家帖可空
+    site_name: str | None  # 绑定站点名（展示用）
+    site_slug: str | None  # 绑定站点 slug（链到详情页）
     post_type: str
     direction: str
     model_family: str

@@ -19,6 +19,7 @@ from app.schemas.marketplace import (
     PostView,
     ResponseView,
 )
+from app.schemas.review import ReviewCreateRequest, ReviewView
 from app.services.marketplace_service import (
     CannotRespondOwnPost,
     InvalidEnum,
@@ -36,6 +37,16 @@ from app.services.marketplace_service import (
     reputation_for,
     respond_to_post,
 )
+from app.services.review_service import (
+    AlreadyReviewed,
+    NoReviewTarget,
+    NotConfirmed,
+    NotDealParty,
+    create_owner_deal_review,
+)
+from app.services.review_service import (
+    ResponseNotFound as ReviewResponseNotFound,
+)
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -50,11 +61,22 @@ def _to_reputation(data: OwnerReputationData) -> OwnerReputation:
 
 
 def _to_post_view(
-    post: MarketplacePost, rep: OwnerReputationData, viewer_id: str
+    post: MarketplacePost,
+    rep: OwnerReputationData,
+    viewer_id: str,
+    site_info: dict[str, tuple[str, str]] | None = None,
 ) -> PostView:
+    name = slug = None
+    if post.site_id is not None and site_info is not None:
+        pair = site_info.get(str(post.site_id))
+        if pair is not None:
+            name, slug = pair
     return PostView(
         post_id=str(post.post_id),
         author_id=str(post.author_id),
+        site_id=str(post.site_id) if post.site_id is not None else None,
+        site_name=name,
+        site_slug=slug,
         post_type=post.post_type,
         direction=post.direction,
         model_family=post.model_family,
@@ -68,6 +90,17 @@ def _to_post_view(
         is_mine=str(post.author_id) == str(viewer_id),
         author_reputation=_to_reputation(rep),
     )
+
+
+async def _site_info_for(posts: list[MarketplacePost]) -> dict[str, tuple[str, str]]:
+    """批量解析帖子绑定站点的 (name, slug)，供展示/链接。"""
+    site_ids = {p.site_id for p in posts if p.site_id is not None}
+    if not site_ids:
+        return {}
+    from app.models.relay_site import RelaySite
+
+    sites = await RelaySite.filter(site_id__in=list(site_ids))
+    return {str(s.site_id): (s.name, s.slug) for s in sites}
 
 
 def _to_response_view(
@@ -117,7 +150,8 @@ async def create(
         ) from exc
     # 新帖作者即当前站长，履历单独算
     rep = await reputation_for(str(owner.user_id))
-    return _to_post_view(post, rep, str(owner.user_id))
+    site_info = await _site_info_for([post])
+    return _to_post_view(post, rep, str(owner.user_id), site_info)
 
 
 @router.get("/posts", response_model=list[PostView])
@@ -137,7 +171,8 @@ async def posts(
         max_rate=max_rate,
         include_closed=include_closed,
     )
-    return [_to_post_view(p, rep, str(viewer.user_id)) for p, rep in pairs]
+    site_info = await _site_info_for([p for p, _ in pairs])
+    return [_to_post_view(p, rep, str(viewer.user_id), site_info) for p, rep in pairs]
 
 
 @router.post("/posts/{post_id}/close", response_model=PostView)
@@ -156,7 +191,8 @@ async def close(
             status_code=status.HTTP_403_FORBIDDEN, detail="只能关闭自己的帖子"
         ) from exc
     rep = await reputation_for(str(post.author_id))
-    return _to_post_view(post, rep, str(viewer.user_id))
+    site_info = await _site_info_for([post])
+    return _to_post_view(post, rep, str(viewer.user_id), site_info)
 
 
 @router.post(
@@ -219,3 +255,54 @@ async def incoming_responses(
     """别人对我帖子的对接（confirmed 含对手=对接发起人的名片）。"""
     triples = await list_responses_to_my_posts(str(owner.user_id))
     return [_to_response_view(r, contact) for r, _post, contact in triples]
+
+
+@router.post(
+    "/responses/{response_id}/review",
+    response_model=ReviewView,
+    status_code=status.HTTP_201_CREATED,
+)
+async def review(
+    response_id: str,
+    data: ReviewCreateRequest,
+    owner: User = Depends(get_current_owner),
+) -> ReviewView:
+    """B 端互评：confirmed 对接的两方评价帖子绑定的站点。
+
+    解锁条件——必须是该对接两方之一且对接已 confirmed；每人每站一次。
+    """
+    try:
+        rv = await create_owner_deal_review(
+            str(owner.user_id),
+            response_id,
+            rating=data.rating,
+            content=data.content,
+        )
+    except ReviewResponseNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="对接记录不存在") from exc
+    except NotConfirmed as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="对接未确认，暂不能评价"
+        ) from exc
+    except NotDealParty as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="只有对接双方可以评价"
+        ) from exc
+    except NoReviewTarget as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="该帖未关联站点，无可评对象"
+        ) from exc
+    except AlreadyReviewed as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="你已评价过该站点"
+        ) from exc
+    return ReviewView(
+        review_id=str(rv.review_id),
+        site_id=str(rv.site_id),
+        author_id=str(rv.author_id),
+        review_type=rv.review_type,
+        rating=rv.rating,
+        content=rv.content,
+        verified=rv.verified,
+        created_at=rv.created_at.isoformat(),
+    )

@@ -133,10 +133,17 @@ async def create_post(
     settlement: str | None = None,
     note: str | None = None,
 ) -> MarketplacePost:
-    """发布集市帖子（status=open）。枚举非法抛 InvalidEnum。"""
+    """发布集市帖子（status=open）。枚举非法抛 InvalidEnum。
+
+    自动绑定发帖人名下站点（当前一人一站，取其一）作为互评对象 site_id；
+    无站点（纯买家）则 site_id 留空，该帖不可被互评。
+    """
     _validate_post_enums(post_type, direction, model_family, settlement)
+    # 取发帖人名下站点（按创建时间，取第一个）。一人一站时即唯一站点。
+    site = await RelaySite.filter(owner_id=author_id).order_by("created_at").first()
     return await MarketplacePost.create(
         author_id=author_id,
+        site_id=site.site_id if site is not None else None,
         post_type=post_type,
         direction=direction,
         model_family=model_family,

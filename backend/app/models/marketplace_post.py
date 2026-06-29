@@ -13,6 +13,9 @@ class MarketplacePost(BaseModel):
 
     post_id = fields.UUIDField(default=gen_uuid7, unique=True, db_index=True)
     author_id = fields.UUIDField(db_index=True)  # 虚拟外键 → users.user_id
+    # 帖子关联的站点（虚拟外键 → relay_sites）。对接 confirmed 后双方互评此站。
+    # 可空：纯买家/无站点站长发的需求帖无可评对象。
+    site_id = fields.UUIDField(null=True, db_index=True)
 
     post_type = fields.CharField(max_length=16)  # supply 出货 | demand 进货
     direction = fields.CharField(max_length=16)  # upstream | downstream

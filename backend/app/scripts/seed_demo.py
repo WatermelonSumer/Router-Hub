@@ -328,27 +328,52 @@ async def _seed_market() -> None:
         owner_map[spec["email"]] = u
 
     seller = owner_map["demo-seller@routerhub.local"]
-    # 演示帖（以 note 为幂等锚，避免重复造）
+
+    # 给 demo-seller 造一个站点（互评对象）。以 slug 锚定幂等。
+    seller_site = await RelaySite.filter(slug="demo-seller-relay").first()
+    if seller_site is None:
+        seller_site = await RelaySite.create(
+            owner_id=seller.user_id,
+            name="SellerRelay",
+            slug="demo-seller-relay",
+            base_url="https://demo-seller-relay.demo.invalid/v1",
+            site_url="https://demo-seller-relay.demo.invalid",
+            encrypted_key=encrypt_key(_DEMO_KEY),
+            key_hint=mask_key(_DEMO_KEY),
+            declared_models=["claude-3-5-sonnet", "gpt-4o"],
+            status="online",
+            status_changed_at=timezone.now(),
+            first_seen_at=timezone.now() - timedelta(days=40),
+        )
+        print("  集市站长站点 SellerRelay 已创建")
+
+    # 演示帖（以 note 为幂等锚，避免重复造），绑定 seller 的站点供互评
     for spec in _MARKET_POSTS:
         existing = await MarketplacePost.filter(
             author_id=seller.user_id, note=spec["note"]
         ).first()
         if existing is None:
-            await MarketplacePost.create(author_id=seller.user_id, status="open", **spec)
+            await MarketplacePost.create(
+                author_id=seller.user_id,
+                site_id=seller_site.site_id,
+                status="open",
+                **spec,
+            )
             print(f"  集市帖已创建：{spec['model_family']} {spec['post_type']}")
         else:
             print(f"  集市帖已存在，跳过：{spec['model_family']} {spec['post_type']}")
 
 
 async def _wipe_market() -> None:
-    """物理删除集市演示数据（站长 + 其帖子）。"""
+    """物理删除集市演示数据（站长 + 其站点 + 帖子）。"""
     emails = [o["email"] for o in _MARKET_OWNERS]
     owners = await User.all_objects().filter(email__in=emails)
     owner_ids = [o.user_id for o in owners]
     if owner_ids:
         await MarketplacePost.all_objects().filter(author_id__in=owner_ids).delete()
+        await RelaySite.all_objects().filter(owner_id__in=owner_ids).delete()
         await User.all_objects().filter(user_id__in=owner_ids).delete()
-    print(f"已清除 {len(owner_ids)} 个集市演示站长及其帖子。")
+    print(f"已清除 {len(owner_ids)} 个集市演示站长及其站点、帖子。")
 
 
 async def _run(wipe: bool) -> int:

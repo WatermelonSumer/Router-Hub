@@ -336,6 +336,9 @@ export type OwnerReputation = {
 export type PostView = {
   post_id: string;
   author_id: string;
+  site_id: string | null;
+  site_name: string | null;
+  site_slug: string | null;
   post_type: string;
   direction: string;
   model_family: string;
@@ -416,4 +419,30 @@ export const marketApi = {
 
   incomingResponses: (token: string) =>
     request<ResponseView[]>("/market/responses/incoming", { token }),
+
+  /** B 端互评：对 confirmed 对接的帖子绑定站点评价（每人每站一次）。 */
+  review: (responseId: string, payload: ReviewCreatePayload, token: string) =>
+    request<ReviewView>(`/market/responses/${responseId}/review`, {
+      method: "POST",
+      body: payload,
+      token,
+    }),
+};
+
+// ===== 评价（与后端 schemas/review.py 对应） =====
+
+export type ReviewCreatePayload = {
+  rating: number; // 1-5
+  content?: string;
+};
+
+export type ReviewView = {
+  review_id: string;
+  site_id: string;
+  author_id: string;
+  review_type: string; // user_topup | owner_deal
+  rating: number;
+  content: string | null;
+  verified: boolean;
+  created_at: string;
 };

@@ -1,5 +1,38 @@
 # 进度
 
+## 2026-06-30（续11：集市阶段2——B 端站长互评 owner_deal）
+
+### Completed
+
+- **B 端互评打通**（features.md 第 9 节，B 端信誉链最后一环）。reviews 表首个使用者：
+  - 模型+迁移：`marketplace_post` 加 `site_id`（null=True，虚拟外键→relay_sites）+ 手写迁移
+    `1_20260630120000_add_post_site_id.py`（ALTER ADD + index）。
+  - **发帖自动绑定站点**（用户确认：当前一人一站，无需下拉）：create_post 取发帖人名下站点填 site_id；
+    无站点（纯买家）则留空、该帖不可被评。PostView 加 site_id/site_name/site_slug。
+  - `schemas/review.py`（ReviewCreateRequest rating1-5+content / ReviewView）；
+    `services/review_service.py`（create_owner_deal_review：校验对接 confirmed + author 是两方之一 +
+    帖子绑定了站点 + 防重复，写 Review(owner_deal, **verified=True**——对接本身即凭证)，
+    刷 recompute_site_scores 喂 review_score；list_site_reviews）；
+    路由 `POST /market/responses/{id}/review`（get_current_owner）。
+  - 评价对象 = 帖子绑定站点；对接两方各评一次（最多 2 条 owner_deal/对接）。复用 C 端 review_score 链路。
+  - 前端：marketApi.review + 类型；帖子卡显示绑定站点名（链详情页）；对接卡 confirmed 后出现
+    **星级互评小部件**（ReviewWidget：1-5 星 + 可选文字，提交即标记已评）。
+  - seed_demo：给 demo-seller 造站点 SellerRelay + 演示帖绑定其 site_id（互评可演示），--wipe 同步清。
+- 测试：`tests/test_review.py` 8 测试（发帖绑定站点/双方可评 owner_deal+verified/刷 review_score/
+  pending 409/非对接方 403/重复 409/rating 越界 422/无站点 400）。后端共 **110 passed**，ruff 通过；
+  前端 lint+build 通过。
+
+### Current State（存档点 2026-06-30 续11）
+
+- B 端信誉闭环完整：发帖（绑站）→ 对接 → confirmed 换名片 → **互评 owner_deal → 喂该站 review_score**。
+- C 端 user_topup 评价仍待 root key 前提（与 owner_deal 共用 reviews 表 + review_score 加权，已验证可共存）。
+- **需 VM：后端重载 + `aerich upgrade`（应用 site_id 迁移）+ 重跑 seed_demo。**
+- **Git：本次（续11）改动待提交（feat/hero）。**
+
+### Next Steps（下次从这里挑）
+
+- C 端评价（root key 前提具备后）；站点编辑/下架；worker 在 VM 常驻；详情页展示评价列表。
+
 ## 2026-06-30（续10：超级管理员集市监管视角——浏览 + 下架）
 
 ### Completed

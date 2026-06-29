@@ -3,7 +3,8 @@
 /** 中转集市页的子组件：发帖表单、筛选条、帖子卡片（含履历名片）、对接列表。 */
 
 import * as React from "react";
-import { Award, Check, Loader2, Skull, X } from "lucide-react";
+import Link from "next/link";
+import { Award, Check, Loader2, Skull, Star, X } from "lucide-react";
 
 import {
   ApiError,
@@ -272,6 +273,14 @@ export function PostCard({
         </span>
         {isClosed && <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">已关闭</span>}
         {post.is_mine && <span className="rounded-md bg-sky-500/15 px-2 py-0.5 text-xs text-sky-600 dark:text-sky-400">我发布的</span>}
+        {post.site_slug && post.site_name && (
+          <Link
+            href={`/site/${post.site_slug}`}
+            className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground hover:text-primary hover:underline"
+          >
+            站点：{post.site_name}
+          </Link>
+        )}
       </div>
 
       <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
@@ -417,6 +426,75 @@ function ResponseCard({
           </dl>
         </div>
       )}
+
+      {resp.status === "confirmed" && <ReviewWidget responseId={resp.response_id} />}
+    </div>
+  );
+}
+
+// 互评小部件：confirmed 对接后评价对方站点（星级 + 可选文字）
+function ReviewWidget({ responseId }: { responseId: string }) {
+  const [rating, setRating] = React.useState(0);
+  const [content, setContent] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [done, setDone] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  async function submit() {
+    if (rating < 1) {
+      setError("请先选择星级");
+      return;
+    }
+    const token = getToken();
+    if (!token) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await marketApi.review(responseId, { rating, content: content || undefined }, token);
+      setDone(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "评价失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <p className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-400">
+        已提交评价，感谢反馈。
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-md border border-border bg-muted/30 px-3 py-2.5">
+      <p className="text-xs font-medium text-muted-foreground">评价对方站点（已对接解锁）</p>
+      <div className="mt-1.5 flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => setRating(n)}
+            aria-label={`${n} 星`}
+            className="text-amber-500 transition-transform hover:scale-110"
+          >
+            <Star className={`size-5 ${n <= rating ? "fill-amber-500" : "fill-transparent"}`} />
+          </button>
+        ))}
+      </div>
+      <Input
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        placeholder="补充说明（可选）"
+        className="mt-2 h-8 text-sm"
+        disabled={busy}
+      />
+      {error && <p className="mt-1.5 text-xs text-destructive">{error}</p>}
+      <Button size="sm" className="mt-2" onClick={submit} disabled={busy}>
+        {busy && <Loader2 className="size-4 animate-spin" />}
+        提交评价
+      </Button>
     </div>
   );
 }
