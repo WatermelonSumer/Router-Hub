@@ -233,9 +233,7 @@ async def recompute_site_scores(site: RelaySite) -> None:
         QualitySample(ttfb_ms=r.ttfb_ms, is_authentic=bool(r.is_authentic)) for r in quality_rows
     ]
 
-    ratings = [
-        float(r.rating) for r in await Review.filter(site_id=site.site_id, verified=True)
-    ]
+    ratings = [float(r.rating) for r in await Review.filter(site_id=site.site_id, verified=True)]
 
     up = uptime_score(alive_samples)
     sp = speed_score(quality_samples)

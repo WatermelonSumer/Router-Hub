@@ -94,7 +94,5 @@ def test_composite_dynamic_weight_redistribution():
 def test_composite_none_when_all_missing():
     """全部指标缺失 → None。"""
     w = Weights(0.4, 0.4, 0.2, 0.0)
-    result = composite_score(
-        uptime=None, speed=None, authenticity=None, review=None, weights=w
-    )
+    result = composite_score(uptime=None, speed=None, authenticity=None, review=None, weights=w)
     assert result is None

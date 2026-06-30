@@ -109,9 +109,7 @@ async def test_both_parties_can_review(client):
 async def test_review_refreshes_score(client):
     """互评后刷新该站 review_score（owner_deal verified 计入加权）。"""
     h1, h2, response_id, author_site = await _confirmed_deal(client)
-    await client.post(
-        f"/market/responses/{response_id}/review", headers=h2, json={"rating": 5}
-    )
+    await client.post(f"/market/responses/{response_id}/review", headers=h2, json={"rating": 5})
     score = await SiteScore.filter(site_id=author_site.site_id, leaderboard="claude").first()
     assert score is not None
     assert score.review_score is not None
@@ -135,9 +133,7 @@ async def test_non_party_cannot_review(client):
     """非对接两方不能评价，返回 403。"""
     h1, h2, response_id, _ = await _confirmed_deal(client)
     h3, _ = await _register_owner(client, "rv_outsider@example.com")
-    r = await client.post(
-        f"/market/responses/{response_id}/review", headers=h3, json={"rating": 1}
-    )
+    r = await client.post(f"/market/responses/{response_id}/review", headers=h3, json={"rating": 1})
     assert r.status_code == 403
 
 
@@ -157,9 +153,7 @@ async def test_cannot_review_twice(client):
 async def test_rating_out_of_range_422(client):
     """rating 越界返回 422。"""
     h1, h2, response_id, _ = await _confirmed_deal(client)
-    r = await client.post(
-        f"/market/responses/{response_id}/review", headers=h2, json={"rating": 6}
-    )
+    r = await client.post(f"/market/responses/{response_id}/review", headers=h2, json={"rating": 6})
     assert r.status_code == 422
 
 

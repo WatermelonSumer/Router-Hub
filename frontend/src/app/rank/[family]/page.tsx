@@ -335,6 +335,3 @@ function ObservingBoard({ entries }: { entries: RankEntry[] }) {
     </section>
   );
 }
-
-
-

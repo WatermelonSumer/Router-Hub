@@ -190,9 +190,7 @@ async def list_posts(
     return [(p, rep_map[p.author_id]) for p in posts]
 
 
-async def close_post(
-    post_id: str, requester_id: str, *, is_admin: bool = False
-) -> MarketplacePost:
+async def close_post(post_id: str, requester_id: str, *, is_admin: bool = False) -> MarketplacePost:
     """关闭帖子。站长仅能关自己的；管理员可关任意帖（内容下架/监管）。"""
     post = await MarketplacePost.filter(post_id=post_id).first()
     if post is None:
@@ -217,15 +215,11 @@ async def respond_to_post(post_id: str, responder_id: str) -> PostResponse:
     if post.status != "open":
         raise PostClosed(post_id)
 
-    existing = await PostResponse.filter(
-        post_id=post_id, responder_id=responder_id
-    ).first()
+    existing = await PostResponse.filter(post_id=post_id, responder_id=responder_id).first()
     if existing is not None:
         return existing
 
-    return await PostResponse.create(
-        post_id=post_id, responder_id=responder_id, status="pending"
-    )
+    return await PostResponse.create(post_id=post_id, responder_id=responder_id, status="pending")
 
 
 async def confirm_response(response_id: str, requester_id: str) -> PostResponse:

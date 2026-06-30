@@ -103,9 +103,7 @@ async def _site_info_for(posts: list[MarketplacePost]) -> dict[str, tuple[str, s
     return {str(s.site_id): (s.name, s.slug) for s in sites}
 
 
-def _to_response_view(
-    resp: PostResponse, contact_user: User | None
-) -> ResponseView:
+def _to_response_view(resp: PostResponse, contact_user: User | None) -> ResponseView:
     """对接记录转视图；contact 仅 confirmed 时由 service 给出 contact_user。"""
     contact = None
     if resp.status == "confirmed" and contact_user is not None:

@@ -84,7 +84,5 @@ async def test_me_without_token(client):
 
 async def test_me_with_invalid_token(client):
     """伪造/损坏令牌返回 401。"""
-    resp = await client.get(
-        "/auth/me", headers={"Authorization": "Bearer not-a-real-token"}
-    )
+    resp = await client.get("/auth/me", headers={"Authorization": "Bearer not-a-real-token"})
     assert resp.status_code == 401

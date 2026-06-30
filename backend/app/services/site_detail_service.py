@@ -102,11 +102,9 @@ async def get_public_detail(slug: str) -> "PublicDetailData":
     history, uptime_30d = await compute_uptime_history(site)
 
     # 已验证可用：是否有过成功的质量探测（真打通 chat 拿到合理回复）
-    verified = (
-        await ProbeResult.filter(
-            site_id=site.site_id, probe_type="quality", is_authentic=True
-        ).exists()
-    )
+    verified = await ProbeResult.filter(
+        site_id=site.site_id, probe_type="quality", is_authentic=True
+    ).exists()
 
     scores = await SiteScore.filter(site_id=site.site_id)
 

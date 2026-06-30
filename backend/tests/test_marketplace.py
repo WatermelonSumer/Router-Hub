@@ -99,9 +99,7 @@ async def test_list_and_filter_posts(client):
     claude = await client.get("/market/posts?model_family=claude", headers=headers)
     assert len(claude.json()) == 2
     # claude 且 supply
-    supply = await client.get(
-        "/market/posts?model_family=claude&post_type=supply", headers=headers
-    )
+    supply = await client.get("/market/posts?model_family=claude&post_type=supply", headers=headers)
     assert len(supply.json()) == 1
 
 

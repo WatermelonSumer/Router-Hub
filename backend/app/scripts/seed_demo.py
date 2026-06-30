@@ -41,15 +41,36 @@ _MARKET_OWNER_PASSWORD = "demo1234"
 
 # 集市演示帖：挂在 demo-seller 名下（按 email 锚定）
 _MARKET_POSTS = [
-    dict(post_type="supply", direction="upstream", model_family="claude",
-         rate="0.05", rpm=200, volume="日均 100w", settlement="weekly",
-         note="claude 上游放量，稳定 200rpm"),
-    dict(post_type="supply", direction="downstream", model_family="gpt",
-         rate="0.08", rpm=120, volume="日均 50w", settlement="daily",
-         note="gpt 下游出货，日结"),
-    dict(post_type="demand", direction="upstream", model_family="gemini",
-         rate="0.10", rpm=60, volume="按量", settlement="prepaid",
-         note="求 gemini 上游，预付"),
+    dict(
+        post_type="supply",
+        direction="upstream",
+        model_family="claude",
+        rate="0.05",
+        rpm=200,
+        volume="日均 100w",
+        settlement="weekly",
+        note="claude 上游放量，稳定 200rpm",
+    ),
+    dict(
+        post_type="supply",
+        direction="downstream",
+        model_family="gpt",
+        rate="0.08",
+        rpm=120,
+        volume="日均 50w",
+        settlement="daily",
+        note="gpt 下游出货，日结",
+    ),
+    dict(
+        post_type="demand",
+        direction="upstream",
+        model_family="gemini",
+        rate="0.10",
+        rpm=60,
+        volume="按量",
+        settlement="prepaid",
+        note="求 gemini 上游，预付",
+    ),
 ]
 
 # 三榜权重（blueprint 3.3：Claude 抬真实性 / GPT 抬在线率价格 / Gemini 抬在线率）
@@ -260,8 +281,7 @@ async def _seed_sites() -> None:
                 declared_models=spec["models"],
                 status=spec["status"],
                 # 坟场站把进入当前状态时刻往前推，前端「连续失败 N 天」才有内容
-                status_changed_at=timezone.now()
-                - timedelta(days=spec.get("dead_days_ago", 0)),
+                status_changed_at=timezone.now() - timedelta(days=spec.get("dead_days_ago", 0)),
                 # 演示用：上架/最早探测时间往前推，详情页才有「存活时长」
                 first_seen_at=timezone.now() - timedelta(days=spec.get("alive_days", 30)),
                 min_topup=spec.get("min_topup"),
@@ -275,9 +295,7 @@ async def _seed_sites() -> None:
         await _seed_probes(site, spec)
 
         for board, (uptime, speed, auth, review, composite) in spec["scores"].items():
-            score = await SiteScore.filter(
-                site_id=site.site_id, leaderboard=board
-            ).first()
+            score = await SiteScore.filter(site_id=site.site_id, leaderboard=board).first()
             if score is None:
                 await SiteScore.create(
                     site_id=site.site_id,
@@ -349,9 +367,7 @@ async def _seed_market() -> None:
 
     # 演示帖（以 note 为幂等锚，避免重复造），绑定 seller 的站点供互评
     for spec in _MARKET_POSTS:
-        existing = await MarketplacePost.filter(
-            author_id=seller.user_id, note=spec["note"]
-        ).first()
+        existing = await MarketplacePost.filter(author_id=seller.user_id, note=spec["note"]).first()
         if existing is None:
             await MarketplacePost.create(
                 author_id=seller.user_id,
@@ -409,4 +425,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

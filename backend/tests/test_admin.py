@@ -68,9 +68,7 @@ async def test_admin_approve(client):
     site = await _create_site(client, owner_headers)
     admin_headers = await _login_admin(client)
 
-    resp = await client.post(
-        f"/admin/sites/{site['site_id']}/approve", headers=admin_headers
-    )
+    resp = await client.post(f"/admin/sites/{site['site_id']}/approve", headers=admin_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert body["status"] == "observing"
@@ -121,13 +119,9 @@ async def test_double_review_conflicts(client):
     site = await _create_site(client, owner_headers)
     admin_headers = await _login_admin(client)
 
-    first = await client.post(
-        f"/admin/sites/{site['site_id']}/approve", headers=admin_headers
-    )
+    first = await client.post(f"/admin/sites/{site['site_id']}/approve", headers=admin_headers)
     assert first.status_code == 200
-    again = await client.post(
-        f"/admin/sites/{site['site_id']}/approve", headers=admin_headers
-    )
+    again = await client.post(f"/admin/sites/{site['site_id']}/approve", headers=admin_headers)
     assert again.status_code == 409
 
 

@@ -24,9 +24,7 @@ def _to_entry(data: GraveyardEntryData) -> GraveyardEntry:
         declared_models=data.declared_models,
         first_seen_at=data.first_seen_at.isoformat() if data.first_seen_at else None,
         last_probe_at=data.last_probe_at.isoformat() if data.last_probe_at else None,
-        status_changed_at=(
-            data.status_changed_at.isoformat() if data.status_changed_at else None
-        ),
+        status_changed_at=(data.status_changed_at.isoformat() if data.status_changed_at else None),
     )
 
 

@@ -79,9 +79,7 @@ async def test_public_detail_basic(client):
     assert body["declared_models"] == ["claude-3-5-sonnet", "gpt-4o"]
     assert body["listed_at"] is not None
     assert body["status_changed_at"] is not None  # 坟场计时/「曾阵亡」起点
-    assert body["scores"] == [
-        {"leaderboard": "claude", "composite_score": 91.5, "rank": 2}
-    ]
+    assert body["scores"] == [{"leaderboard": "claude", "composite_score": 91.5, "rank": 2}]
     # 红线：绝不泄露 key / base_url / 加密串
     assert _SECRET_KEY not in resp.text
     assert _BASE_URL not in resp.text
