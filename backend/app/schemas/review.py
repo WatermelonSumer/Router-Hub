@@ -14,6 +14,12 @@ class ReviewCreateRequest(BaseModel):
     content: str | None = Field(default=None, max_length=1000)
 
 
+class UserTopupReviewCreateRequest(ReviewCreateRequest):
+    """C 端评价请求：用户用自己在该站的 key 自证充值/用量。"""
+
+    api_key: str = Field(min_length=8, max_length=4096)
+
+
 class ReviewView(BaseModel):
     """评价视图。review_type 标注来源；verified 标注是否计入加权。"""
 

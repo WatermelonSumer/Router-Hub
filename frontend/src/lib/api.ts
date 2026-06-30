@@ -235,6 +235,12 @@ export type SiteReviewsResponse = {
   reviews: SiteReviewView[];
 };
 
+export type UserTopupReviewCreatePayload = {
+  api_key: string;
+  rating: number;
+  content?: string;
+};
+
 export const siteApi = {
   create: (payload: SiteCreatePayload, token: string) =>
     request<SiteOwnerView>("/sites", { method: "POST", body: payload, token }),
@@ -267,6 +273,13 @@ export const siteApi = {
   reviews: (slug: string) =>
     request<SiteReviewsResponse>(`/sites/${encodeURIComponent(slug)}/reviews`, {
       revalidate: 60,
+    }),
+
+  createReview: (slug: string, payload: UserTopupReviewCreatePayload, token: string) =>
+    request<SiteReviewView>(`/sites/${encodeURIComponent(slug)}/reviews`, {
+      method: "POST",
+      body: payload,
+      token,
     }),
 };
 

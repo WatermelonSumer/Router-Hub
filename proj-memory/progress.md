@@ -1,5 +1,25 @@
 # 进度
 
+## 2026-07-01（续14：worker VM 常驻模板 + C 端 user_topup 评价）
+
+### Completed
+
+- **worker VM 常驻模板**：新增 `backend/start-worker.sh` 与 `backend/router-hub-worker.service`，README 补 systemd 启用步骤；worker 仍保持独立于 FastAPI Web 进程。
+- **C 端充值用户评价**：新增 `POST /sites/{slug}/reviews`，登录用户提交该站 API key 后由后端一次性验证额度/用量，验证通过写入 `review_type=user_topup`、`verified=True`，并刷新 `review_score`。
+- **验证适配层**：新增 `services/topup_verifier.py`，集中尝试常见额度/用量接口，避免把 new-api/sub2api 版本差异塞进路由。
+- **前端详情页入口**：`/site/{slug}` 新增登录用户评价表单，key 只用于提交验证，不展示、不缓存到页面状态之外。
+- **测试**：新增 `test_user_topup_review.py` 与 `test_topup_verifier.py`，覆盖验证通过、验证失败、重复评价、游客 401、pending 站点 404 和额度响应解析。
+
+### Current State
+
+- worker 已有可提交到 VM 的 systemd 模板，但还需要在真实 VM 执行 `systemctl enable --now router-hub-worker` 才算上线常驻。
+- C 端评价闭环已在本地代码完成；线上是否能验证取决于目标站点实际 new-api/sub2api 额度接口兼容性。
+
+### Next Steps
+
+- 在 VM 上重载最新后端、启用 `router-hub-worker` systemd 服务，并验证 `/sites/{slug}/reviews` 的 GET/POST。
+- 观察真实站点额度接口差异，如有不兼容响应，继续扩展 `topup_verifier` 的 endpoint/字段适配。
+
 ## 2026-06-30（续13：部署联调收口 + 详情页评价展示）
 
 ### Completed

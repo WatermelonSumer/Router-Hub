@@ -11,6 +11,7 @@ from app.models.post_response import PostResponse
 from app.models.relay_site import RelaySite
 from app.models.review import Review
 from app.services.scoring import recompute_site_scores
+from app.services.topup_verifier import HttpTopupVerifier, TopupVerifier
 
 
 class ReviewError(Exception):
@@ -35,6 +36,14 @@ class NoReviewTarget(ReviewError):
 
 class AlreadyReviewed(ReviewError):
     """已对该对接的站点评过价（防重复刷分）。"""
+
+
+class SiteNotReviewable(ReviewError):
+    """站点当前不可公开评价。"""
+
+
+class TopupVerificationFailed(ReviewError):
+    """用户 key 未能证明在该站有充值/用量。"""
 
 
 async def create_owner_deal_review(
@@ -92,6 +101,50 @@ async def create_owner_deal_review(
     if site is not None:
         await recompute_site_scores(site)
 
+    return review
+
+
+async def create_user_topup_review(
+    author_id: str,
+    site_slug: str,
+    *,
+    api_key: str,
+    rating: int,
+    content: str | None = None,
+    verifier: TopupVerifier | None = None,
+) -> Review:
+    """C 端评价：用户用自己在目标站的 key 验证充值/用量后评价。
+
+    评价资格来自真实使用痕迹，key 只用于本次后端验证，不保存、不返回。
+    同一用户对同一站点仅允许一条 user_topup 评价。
+    """
+    site = await RelaySite.filter(slug=site_slug).first()
+    if site is None or site.status in {"pending", "rejected"}:
+        raise SiteNotReviewable(site_slug)
+
+    existing = await Review.filter(
+        author_id=author_id,
+        site_id=site.site_id,
+        review_type="user_topup",
+    ).first()
+    if existing is not None:
+        raise AlreadyReviewed(site_slug)
+
+    verifier = verifier or HttpTopupVerifier()
+    verified = await verifier.verify(base_url=site.base_url, api_key=api_key)
+    if not verified:
+        raise TopupVerificationFailed(site_slug)
+
+    review = await Review.create(
+        site_id=site.site_id,
+        author_id=author_id,
+        review_type="user_topup",
+        rating=rating,
+        content=content,
+        verified=True,
+    )
+
+    await recompute_site_scores(site)
     return review
 
 

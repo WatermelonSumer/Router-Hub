@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-07-01
+
+- worker VM 常驻：新增 systemd service 模板与启动脚本，README 记录启用步骤。
+- C 端 user_topup 评价：新增登录用户充值/用量 key 验证提交接口、验证适配层、详情页评价表单与回归测试。
+
 ## 2026-06-30
 
 - 部署联调：确认迁移无待执行项，幂等重跑 seed_demo，验证 VM health/graveyard/rank/站点编辑路由，启动本机 worker scheduler 并手动跑一轮存活探测。

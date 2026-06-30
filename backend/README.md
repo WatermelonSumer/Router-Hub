@@ -62,6 +62,24 @@ curl http://127.0.0.1:8010/health
 poetry run python -m app.worker.scheduler
 ```
 
+## VM 常驻部署
+
+worker 不在 Web 进程内跑。VM 上建议用 systemd 托管 `poetry run python -m app.worker.scheduler`。
+
+仓库已提供最小模板：
+
+```bash
+# 假设仓库路径为 /opt/router-hub
+chmod +x /opt/router-hub/backend/start-worker.sh
+sudo cp /opt/router-hub/backend/router-hub-worker.service /etc/systemd/system/router-hub-worker.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now router-hub-worker
+sudo systemctl status router-hub-worker
+sudo journalctl -u router-hub-worker -f
+```
+
+如果 VM 路径不是 `/opt/router-hub/backend`，先调整 `router-hub-worker.service` 里的 `WorkingDirectory` 和 `ExecStart`。
+
 ## 创建管理员
 
 admin 角色只能由脚本创建，注册接口无法产生（防止外部注册出管理员）。

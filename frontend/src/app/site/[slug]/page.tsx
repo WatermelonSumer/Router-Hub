@@ -6,6 +6,7 @@ import { Activity, CheckCircle2, Clock, ExternalLink, Star } from "lucide-react"
 import { ApiError, siteApi, type SitePublicView, type SiteReviewView } from "@/lib/api";
 import { SiteShell } from "@/components/site-shell";
 import { GatedPanel } from "./gated-panel";
+import { ReviewForm } from "./review-form";
 
 // 状态 → 风险灯（标签 + 语义色 + 一句客观说明，坟场措辞红线：只陈述探测事实）
 const STATUS_META: Record<
@@ -350,6 +351,8 @@ export default async function SiteDetailPage({
               </div>
             )}
           </div>
+
+          <ReviewForm slug={detail.slug} />
 
           {reviews.length > 0 ? (
             <div className="mt-4 grid gap-3">

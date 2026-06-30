@@ -8,7 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.deps import get_current_owner, get_current_user
 from app.models.relay_site import RelaySite
 from app.models.user import User
-from app.schemas.review import ReviewView, SiteReviewsResponse
+from app.schemas.review import (
+    ReviewView,
+    SiteReviewsResponse,
+    UserTopupReviewCreateRequest,
+)
 from app.schemas.site import SiteCreateRequest, SiteOwnerView, SiteUpdateRequest
 from app.schemas.site_detail import (
     SiteGatedView,
@@ -16,7 +20,13 @@ from app.schemas.site_detail import (
     SiteScoreBrief,
     UptimePoint,
 )
-from app.services.review_service import list_site_reviews
+from app.services.review_service import (
+    AlreadyReviewed,
+    SiteNotReviewable,
+    TopupVerificationFailed,
+    create_user_topup_review,
+    list_site_reviews,
+)
 from app.services.site_detail_service import (
     SiteDetailNotFound,
     get_gated_detail,
@@ -147,6 +157,43 @@ def _iso(dt) -> str | None:
 
 
 # 注意：以下 /{slug} 路由声明在 /mine 之后，确保字面量 /mine 优先匹配。
+
+
+@router.post("/{slug}/reviews", response_model=ReviewView, status_code=status.HTTP_201_CREATED)
+async def create_user_review(
+    slug: str,
+    data: UserTopupReviewCreateRequest,
+    user: User = Depends(get_current_user),
+) -> ReviewView:
+    """C 端用户评价：用该站 key 自证充值/用量后写 verified=user_topup 评价。
+
+    用户 key 只用于本次后端验证，不落库、不回传。
+    """
+    try:
+        review = await create_user_topup_review(
+            str(user.user_id),
+            slug,
+            api_key=data.api_key,
+            rating=data.rating,
+            content=data.content,
+        )
+    except SiteNotReviewable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="站点不存在或暂不可评价",
+        ) from exc
+    except TopupVerificationFailed as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="未能验证该 key 在此站的充值或用量记录",
+        ) from exc
+    except AlreadyReviewed as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="你已评价过该站点",
+        ) from exc
+
+    return _to_review_view(review)
 
 
 @router.get("/{slug}/reviews", response_model=SiteReviewsResponse)

@@ -1,0 +1,17 @@
+[Unit]
+Description=Router-Hub probe worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/router-hub/backend
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/bin/bash /opt/router-hub/backend/start-worker.sh
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target
