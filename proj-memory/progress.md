@@ -1,5 +1,22 @@
 # 进度
 
+## 2026-07-01（收口：已提交并暂停）
+
+### Completed
+
+- 已提交本轮改动，commit: `1254f6e`。
+- worker VM 常驻模板已入库；C 端 user_topup 评价、前端提交入口、验证适配层与测试已落地。
+
+### Current State
+
+- 代码侧工作已完成并通过测试/构建/预提交检查。
+- 需要真实 VM 上启用 systemd worker，以及在真实站点上观察 topup_verifier 兼容性。
+
+### Next Steps
+
+- 等你恢复后，优先在 VM 拉取最新提交并启用 `router-hub-worker.service`。
+- 之后用真实站点 key 走一遍 C 端评价，补充新接口差异适配。
+
 ## 2026-07-01（续14：worker VM 常驻模板 + C 端 user_topup 评价）
 
 ### Completed

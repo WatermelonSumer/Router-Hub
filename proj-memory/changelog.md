@@ -2,6 +2,10 @@
 
 ## 2026-07-01
 
+- 提交 `1254f6e`：完成 C 端 user_topup 评价、worker VM 常驻模板、前端提交入口与回归测试。
+
+## 2026-07-01
+
 - worker VM 常驻：新增 systemd service 模板与启动脚本，README 记录启用步骤。
 - C 端 user_topup 评价：新增登录用户充值/用量 key 验证提交接口、验证适配层、详情页评价表单与回归测试。
 
