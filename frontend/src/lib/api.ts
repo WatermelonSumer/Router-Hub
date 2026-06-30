@@ -137,6 +137,18 @@ export type SiteCreatePayload = {
   rpm_limit?: number;
 };
 
+export type SiteUpdatePayload = {
+  name?: string;
+  site_url?: string | null;
+  base_url?: string;
+  api_key?: string;
+  declared_models?: string[] | null;
+  min_topup?: string | null;
+  pay_methods?: string | null;
+  rpm_limit?: number | null;
+  probe_budget_daily?: number;
+};
+
 export type SiteOwnerView = {
   site_id: string;
   name: string;
@@ -150,6 +162,7 @@ export type SiteOwnerView = {
   min_topup: string | null;
   pay_methods: string | null;
   rpm_limit: number | null;
+  probe_budget_daily: number;
 };
 
 // 管理员审核视角：站长字段 + 站长联系方式 + 上架时间（仍不含 key）
@@ -211,6 +224,12 @@ export const siteApi = {
     request<SiteOwnerView>("/sites", { method: "POST", body: payload, token }),
 
   mine: (token: string) => request<SiteOwnerView[]>("/sites/mine", { token }),
+
+  update: (siteId: string, payload: SiteUpdatePayload, token: string) =>
+    request<SiteOwnerView>(`/sites/${siteId}`, { method: "PATCH", body: payload, token }),
+
+  remove: (siteId: string, token: string) =>
+    request<void>(`/sites/${siteId}`, { method: "DELETE", token }),
 
   /**
    * 站点详情（游客可见部分）。吃 SEO，故走 SSR + ISR（默认 60s 重验证）。

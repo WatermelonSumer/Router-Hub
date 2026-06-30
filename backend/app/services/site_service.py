@@ -9,7 +9,9 @@ import re
 from tortoise import timezone
 
 from app.core.security import encrypt_key, mask_key
+from app.models.probe_result import ProbeResult
 from app.models.relay_site import RelaySite
+from app.models.site_score import SiteScore
 from app.models.user import User
 
 
@@ -95,6 +97,98 @@ async def list_owner_sites(owner_id: str) -> list[RelaySite]:
     return await RelaySite.filter(owner_id=owner_id).order_by("-created_at")
 
 
+_MATERIAL_FIELDS = {"base_url", "api_key", "declared_models"}
+
+
+async def _soft_delete_probe_identity_data(site: RelaySite) -> None:
+    """探测身份变化后软删除旧探测事实与旧榜单分。
+
+    Base URL / API Key / 声明模型变更后，旧 probe_results 和 site_scores
+    不再能代表当前目标；保留软删除痕迹，避免继续公开或参与排名。
+    """
+    now = timezone.now()
+    await ProbeResult.filter(site_id=site.site_id).update(
+        is_deleted=True, deleted_at=now, updated_at=now
+    )
+    await SiteScore.filter(site_id=site.site_id).update(
+        is_deleted=True, deleted_at=now, updated_at=now
+    )
+
+
+async def update_owner_site(
+    owner_id: str,
+    site_id: str,
+    changes: dict[str, object],
+) -> RelaySite:
+    """站长编辑自己的站点。
+
+    slug 不允许改；探测身份字段变化时退回 pending 重新审核，并清理旧探测/旧分数。
+    找不到或不属于当前站长时统一按不存在处理，避免泄露站点归属。
+    """
+    site = await RelaySite.filter(site_id=site_id, owner_id=owner_id).first()
+    if site is None:
+        raise SiteNotFound(site_id)
+
+    update_fields: set[str] = set()
+    material_changed = False
+
+    for field in (
+        "name",
+        "site_url",
+        "base_url",
+        "declared_models",
+        "min_topup",
+        "pay_methods",
+        "rpm_limit",
+        "probe_budget_daily",
+    ):
+        if field not in changes:
+            continue
+        value = changes[field]
+        if getattr(site, field) != value:
+            setattr(site, field, value)
+            update_fields.add(field)
+            if field in _MATERIAL_FIELDS:
+                material_changed = True
+
+    if "api_key" in changes:
+        api_key = str(changes["api_key"])
+        site.encrypted_key = encrypt_key(api_key)
+        site.key_hint = mask_key(api_key)
+        update_fields.update({"encrypted_key", "key_hint"})
+        material_changed = True
+
+    if material_changed:
+        await _soft_delete_probe_identity_data(site)
+        site.status = "pending"
+        site.review_note = None
+        site.status_changed_at = None
+        site.first_seen_at = None
+        site.last_probe_at = None
+        update_fields.update(
+            {
+                "status",
+                "review_note",
+                "status_changed_at",
+                "first_seen_at",
+                "last_probe_at",
+            }
+        )
+
+    if update_fields:
+        update_fields.add("updated_at")
+        await site.save(update_fields=sorted(update_fields))
+    return site
+
+
+async def delete_owner_site(owner_id: str, site_id: str) -> None:
+    """站长下架自己的站点：走软删除，保留审计痕迹。"""
+    site = await RelaySite.filter(site_id=site_id, owner_id=owner_id).first()
+    if site is None:
+        raise SiteNotFound(site_id)
+    await site.soft_delete()
+
+
 async def list_pending_sites() -> list[tuple[RelaySite, User | None]]:
     """列出全部待审核站点，并附其站长（虚拟外键在 service 层关联）。
 
@@ -144,7 +238,5 @@ async def review_site(site_id: str, *, approve: bool, note: str | None = None) -
     else:
         site.status = "rejected"
         site.review_note = note
-    await site.save(
-        update_fields=["status", "review_note", "status_changed_at", "updated_at"]
-    )
+    await site.save(update_fields=["status", "review_note", "status_changed_at", "updated_at"])
     return site

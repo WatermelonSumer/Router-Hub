@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.deps import get_current_owner, get_current_user
 from app.models.relay_site import RelaySite
 from app.models.user import User
-from app.schemas.site import SiteCreateRequest, SiteOwnerView
+from app.schemas.site import SiteCreateRequest, SiteOwnerView, SiteUpdateRequest
 from app.schemas.site_detail import (
     SiteGatedView,
     SitePublicView,
@@ -21,9 +21,12 @@ from app.services.site_detail_service import (
     get_public_detail,
 )
 from app.services.site_service import (
+    SiteNotFound,
     SlugAlreadyExists,
     create_site,
+    delete_owner_site,
     list_owner_sites,
+    update_owner_site,
 )
 
 router = APIRouter(prefix="/sites", tags=["sites"])
@@ -44,6 +47,7 @@ def _to_owner_view(site: RelaySite) -> SiteOwnerView:
         min_topup=site.min_topup,
         pay_methods=site.pay_methods,
         rpm_limit=site.rpm_limit,
+        probe_budget_daily=site.probe_budget_daily,
     )
 
 
@@ -79,6 +83,46 @@ async def mine(owner: User = Depends(get_current_owner)) -> list[SiteOwnerView]:
     """列出当前站长名下的全部站点。"""
     sites = await list_owner_sites(str(owner.user_id))
     return [_to_owner_view(s) for s in sites]
+
+
+@router.patch("/{site_id}", response_model=SiteOwnerView)
+async def update(
+    site_id: str,
+    data: SiteUpdateRequest,
+    owner: User = Depends(get_current_owner),
+) -> SiteOwnerView:
+    """站长编辑自己的站点。
+
+    slug 永不修改；变更 Base URL / API Key / 声明模型会退回 pending 重新审核，
+    并清掉旧探测事实与旧分数，避免旧目标数据继续背书。
+    """
+    try:
+        site = await update_owner_site(
+            owner_id=str(owner.user_id),
+            site_id=site_id,
+            changes=data.model_dump(exclude_unset=True),
+        )
+    except SiteNotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="站点不存在",
+        ) from exc
+    return _to_owner_view(site)
+
+
+@router.delete("/{site_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete(
+    site_id: str,
+    owner: User = Depends(get_current_owner),
+) -> None:
+    """站长下架自己的站点。业务删除走软删除，不物理清库。"""
+    try:
+        await delete_owner_site(owner_id=str(owner.user_id), site_id=site_id)
+    except SiteNotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="站点不存在",
+        ) from exc
 
 
 def _iso(dt) -> str | None:

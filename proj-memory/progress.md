@@ -1,5 +1,27 @@
 # 进度
 
+## 2026-06-30（续12：站长站点编辑 + 下架）
+
+### Completed
+
+- **站长控制台补齐站点编辑/下架闭环**：
+  - 后端：新增 `SiteUpdateRequest`、`PATCH /sites/{site_id}`、`DELETE /sites/{site_id}`；站长只能操作自己站点，越权统一 404。
+  - slug 继续遵守“URL 用，永不改”；展示/硬信息（name/site_url/min_topup/pay_methods/rpm_limit/probe_budget_daily）可直接更新。
+  - Base URL / API Key / 声明模型属于探测身份：变更后站点退回 `pending`，清空 review_note/status_changed_at/first_seen_at/last_probe_at，并软删除旧 `probe_results` 与 `site_scores`，避免旧探测履历继续给新目标背书。
+  - 下架走 `RelaySite.soft_delete()`，保留审计痕迹；默认查询、公开详情、站长列表均不再显示。
+  - 前端：`siteApi.update/remove` + `/owner` 站点卡片新增详情、编辑、下架；编辑表单支持更换 key、硬信息、模型、质量探测预算，并提示探测身份变更会退回待审。
+- 测试：`tests/test_sites.py` 补 4 条（展示字段编辑不退审/探测身份变更退审并清旧数据/越权 404/下架隐藏公开详情）。后端共 **114 passed**；前端 lint + build 通过。
+
+### Current State（存档点 2026-06-30 续12）
+
+- 站长端现在可完成：上架 → 审核 → 查看 → 编辑硬信息/探测身份 → 必要时重新审核 → 下架。
+- **新接口需 VM 后端重载才生效**；变更探测身份后需要 admin 重新审核，再由 worker 重新产出探测和分数。
+- `pre-commit run --all-files` 因当前网络无法拉取 hook 仓库失败（GitHub ruff-pre-commit fetch 走 127.0.0.1:7897 失败）；已用本地 ruff/pytest/npm lint/build 覆盖本次改动。
+
+### Next Steps（下次从这里挑）
+
+- VM：后端重载 + `aerich upgrade`（应用 site_id 迁移）+ 重跑 seed_demo；worker 常驻。
+- C 端评价（root key 前提具备后）；详情页展示评价列表。
 ## 2026-06-30（续11：集市阶段2——B 端站长互评 owner_deal）
 
 ### Completed

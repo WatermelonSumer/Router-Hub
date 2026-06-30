@@ -4,9 +4,12 @@ import * as React from "react";
 import Link from "next/link";
 import {
   Loader2,
+  Pencil,
   Plus,
+  Save,
   Server,
   ShieldAlert,
+  Trash2,
 } from "lucide-react";
 
 import {
@@ -14,6 +17,7 @@ import {
   siteApi,
   type SiteCreatePayload,
   type SiteOwnerView,
+  type SiteUpdatePayload,
 } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { useAuth } from "@/components/auth-provider";
@@ -126,6 +130,16 @@ function OwnerConsole() {
     setShowForm(false);
   }
 
+  function handleUpdated(site: SiteOwnerView) {
+    setSites((prev) =>
+      prev ? prev.map((item) => (item.site_id === site.site_id ? site : item)) : [site],
+    );
+  }
+
+  function handleDeleted(siteId: string) {
+    setSites((prev) => (prev ? prev.filter((site) => site.site_id !== siteId) : prev));
+  }
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-10">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -172,7 +186,7 @@ function OwnerConsole() {
         {sites && sites.length > 0 && (
           <div className="grid gap-3">
             {sites.map((site) => (
-              <SiteCard key={site.site_id} site={site} />
+              <SiteCard key={site.site_id} site={site} onUpdated={handleUpdated} onDeleted={handleDeleted} />
             ))}
           </div>
         )}
@@ -181,16 +195,65 @@ function OwnerConsole() {
   );
 }
 
-function SiteCard({ site }: { site: SiteOwnerView }) {
+function SiteCard({
+  site,
+  onUpdated,
+  onDeleted,
+}: {
+  site: SiteOwnerView;
+  onUpdated: (site: SiteOwnerView) => void;
+  onDeleted: (siteId: string) => void;
+}) {
+  const [editing, setEditing] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  async function handleDelete() {
+    if (!window.confirm("确定下架这个中转站？下架后不会再公开展示或参与排行。")) return;
+
+    const token = getToken();
+    if (!token) {
+      setError("登录已失效，请重新登录");
+      return;
+    }
+
+    setDeleting(true);
+    setError(null);
+    try {
+      await siteApi.remove(site.site_id, token);
+      onDeleted(site.site_id);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "下架失败，请重试");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="rounded-xl border border-border bg-card p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold">{site.name}</h3>
-          <StatusBadge status={site.status} />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-semibold">{site.name}</h3>
+            <StatusBadge status={site.status} />
+          </div>
+          <span className="mt-1 block font-mono text-xs text-muted-foreground">/{site.slug}</span>
         </div>
-        <span className="font-mono text-xs text-muted-foreground">/{site.slug}</span>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href={"/site/" + site.slug}>详情</Link>
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setEditing((value) => !value)}>
+            <Pencil className="size-4" />
+            {editing ? "收起" : "编辑"}
+          </Button>
+          <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deleting}>
+            {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+            下架
+          </Button>
+        </div>
       </div>
+
       <dl className="mt-3 grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
         <div className="flex justify-between gap-2 sm:block">
           <dt className="text-muted-foreground">Base URL</dt>
@@ -200,21 +263,222 @@ function SiteCard({ site }: { site: SiteOwnerView }) {
           <dt className="text-muted-foreground">API Key</dt>
           <dd className="font-mono text-xs">{site.key_hint}</dd>
         </div>
+        <div className="flex justify-between gap-2 sm:block">
+          <dt className="text-muted-foreground">起充门槛</dt>
+          <dd className="text-xs">{site.min_topup ?? "未填写"}</dd>
+        </div>
+        <div className="flex justify-between gap-2 sm:block">
+          <dt className="text-muted-foreground">RPM 限制</dt>
+          <dd className="text-xs">{site.rpm_limit ?? "未填写"}</dd>
+        </div>
+        <div className="flex justify-between gap-2 sm:block">
+          <dt className="text-muted-foreground">质量探测预算</dt>
+          <dd className="text-xs">{site.probe_budget_daily === 0 ? "不限" : site.probe_budget_daily}</dd>
+        </div>
+        {site.site_url && (
+          <div className="flex justify-between gap-2 sm:block">
+            <dt className="text-muted-foreground">展示主页</dt>
+            <dd className="truncate text-xs">{site.site_url}</dd>
+          </div>
+        )}
         {site.declared_models && site.declared_models.length > 0 && (
           <div className="flex justify-between gap-2 sm:col-span-2 sm:block">
             <dt className="text-muted-foreground">声称模型</dt>
             <dd className="text-xs">{site.declared_models.join("、")}</dd>
           </div>
         )}
+        {site.pay_methods && (
+          <div className="flex justify-between gap-2 sm:col-span-2 sm:block">
+            <dt className="text-muted-foreground">支付方式</dt>
+            <dd className="text-xs">{site.pay_methods}</dd>
+          </div>
+        )}
       </dl>
+
       {site.status === "rejected" && site.review_note && (
         <div className="mt-3 rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-600 dark:text-rose-400">
           <span className="font-medium">驳回理由：</span>
           {site.review_note}
         </div>
       )}
+
+      {error && (
+        <p className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {error}
+        </p>
+      )}
+
+      {editing && (
+        <EditSiteForm
+          site={site}
+          onUpdated={(updated) => {
+            onUpdated(updated);
+            setEditing(false);
+          }}
+          onCancel={() => setEditing(false)}
+        />
+      )}
     </div>
   );
+}
+
+
+function EditSiteForm({
+  site,
+  onUpdated,
+  onCancel,
+}: {
+  site: SiteOwnerView;
+  onUpdated: (site: SiteOwnerView) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = React.useState(site.name);
+  const [siteUrl, setSiteUrl] = React.useState(site.site_url ?? "");
+  const [baseUrl, setBaseUrl] = React.useState(site.base_url);
+  const [apiKey, setApiKey] = React.useState("");
+  const [models, setModels] = React.useState(site.declared_models?.join(", ") ?? "");
+  const [minTopup, setMinTopup] = React.useState(site.min_topup ?? "");
+  const [payMethods, setPayMethods] = React.useState(site.pay_methods ?? "");
+  const [rpmLimit, setRpmLimit] = React.useState(site.rpm_limit?.toString() ?? "");
+  const [probeBudget, setProbeBudget] = React.useState(site.probe_budget_daily.toString());
+  const [error, setError] = React.useState<string | null>(null);
+  const [submitting, setSubmitting] = React.useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    if (!name.trim() || !baseUrl.trim()) {
+      setError("请填写站点名称和 Base URL");
+      return;
+    }
+
+    const rpm = parseOptionalInteger(rpmLimit, "RPM 限制");
+    if (rpm instanceof Error) {
+      setError(rpm.message);
+      return;
+    }
+
+    const budget = parseRequiredInteger(probeBudget, "质量探测预算");
+    if (budget instanceof Error) {
+      setError(budget.message);
+      return;
+    }
+
+    const modelList = models.trim()
+      ? models
+          .split(",")
+          .map((model) => model.trim())
+          .filter(Boolean)
+      : null;
+
+    const payload: SiteUpdatePayload = {};
+    const nextName = name.trim();
+    const nextSiteUrl = siteUrl.trim() || null;
+    const nextBaseUrl = baseUrl.trim();
+    const nextMinTopup = minTopup.trim() || null;
+    const nextPayMethods = payMethods.trim() || null;
+
+    if (nextName !== site.name) payload.name = nextName;
+    if (nextSiteUrl !== site.site_url) payload.site_url = nextSiteUrl;
+    if (nextBaseUrl !== site.base_url) payload.base_url = nextBaseUrl;
+    if (apiKey.trim()) payload.api_key = apiKey.trim();
+    if (JSON.stringify(modelList) !== JSON.stringify(site.declared_models ?? null)) {
+      payload.declared_models = modelList;
+    }
+    if (nextMinTopup !== site.min_topup) payload.min_topup = nextMinTopup;
+    if (nextPayMethods !== site.pay_methods) payload.pay_methods = nextPayMethods;
+    if (rpm !== site.rpm_limit) payload.rpm_limit = rpm;
+    if (budget !== site.probe_budget_daily) payload.probe_budget_daily = budget;
+
+    if (Object.keys(payload).length === 0) {
+      setError("没有需要保存的修改");
+      return;
+    }
+
+    const token = getToken();
+    if (!token) {
+      setError("登录已失效，请重新登录");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const updated = await siteApi.update(site.site_id, payload, token);
+      onUpdated(updated);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "保存失败，请重试");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-5 border-t border-border pt-5">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="站点名称" required>
+          <Input value={name} onChange={(e) => setName(e.target.value)} disabled={submitting} />
+        </Field>
+        <Field label="展示主页">
+          <Input value={siteUrl} onChange={(e) => setSiteUrl(e.target.value)} placeholder="https://example.com" disabled={submitting} />
+        </Field>
+        <Field label="Base URL" required>
+          <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} disabled={submitting} />
+        </Field>
+        <Field label="更换 API Key">
+          <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="留空表示不更换" autoComplete="off" disabled={submitting} />
+        </Field>
+        <Field label="声称支持的模型（逗号分隔）" full>
+          <Input value={models} onChange={(e) => setModels(e.target.value)} placeholder="claude-3-5-sonnet, gpt-4o" disabled={submitting} />
+        </Field>
+        <Field label="起充门槛">
+          <Input value={minTopup} onChange={(e) => setMinTopup(e.target.value)} placeholder="20.00" disabled={submitting} />
+        </Field>
+        <Field label="支付方式">
+          <Input value={payMethods} onChange={(e) => setPayMethods(e.target.value)} placeholder="支付宝, USDT" disabled={submitting} />
+        </Field>
+        <Field label="RPM 限制">
+          <Input inputMode="numeric" value={rpmLimit} onChange={(e) => setRpmLimit(e.target.value)} placeholder="300" disabled={submitting} />
+        </Field>
+        <Field label="质量探测预算">
+          <Input inputMode="numeric" value={probeBudget} onChange={(e) => setProbeBudget(e.target.value)} disabled={submitting} />
+        </Field>
+      </div>
+
+      <p className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+        修改 Base URL、API Key 或声明模型后，站点会回到待审核状态，旧探测数据不再参与展示和排行。
+      </p>
+
+      {error && (
+        <p className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {error}
+        </p>
+      )}
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button type="submit" disabled={submitting}>
+          {submitting ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+          保存修改
+        </Button>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
+          取消
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function parseOptionalInteger(value: string, label: string): number | null | Error {
+  if (!value.trim()) return null;
+  return parseRequiredInteger(value, label);
+}
+
+function parseRequiredInteger(value: string, label: string): number | Error {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return new Error(label + "必须是非负整数");
+  }
+  return parsed;
 }
 
 function CreateSiteForm({
@@ -342,4 +606,3 @@ function Field({
     </div>
   );
 }
-

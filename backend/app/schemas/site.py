@@ -42,6 +42,32 @@ class SiteCreateRequest(BaseModel):
         return v
 
 
+class SiteUpdateRequest(BaseModel):
+    """站长编辑站点资料的请求。
+
+    slug 是公开 URL 标识，按项目约定永不修改；Base URL / API Key /
+    声明模型属于探测身份，变更后会退回 pending 重新审核。
+    """
+
+    name: str | None = Field(default=None, min_length=2, max_length=128)
+    site_url: str | None = Field(default=None, max_length=512)
+    base_url: str | None = Field(default=None, min_length=1, max_length=512)
+    api_key: str | None = Field(default=None, min_length=1, max_length=512)
+    declared_models: list[str] | None = None
+    min_topup: Decimal | None = Field(default=None, ge=0)
+    pay_methods: str | None = Field(default=None, max_length=256)
+    rpm_limit: int | None = Field(default=None, ge=0)
+    probe_budget_daily: int | None = Field(default=None, ge=0)
+
+    @field_validator("name", "base_url", "api_key")
+    @classmethod
+    def _required_when_present(cls, v: str | None) -> str:
+        """可省略，但显式传 null 不允许，避免把必填列更新为空。"""
+        if v is None:
+            raise ValueError("字段不允许为空")
+        return v
+
+
 class SiteOwnerView(BaseModel):
     """站长视角的站点信息：含 key_hint 与状态，绝不含明文/密文 key。"""
 
@@ -57,6 +83,7 @@ class SiteOwnerView(BaseModel):
     min_topup: Decimal | None
     pay_methods: str | None
     rpm_limit: int | None
+    probe_budget_daily: int
 
 
 class SiteAdminView(BaseModel):

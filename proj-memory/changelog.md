@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-06-30
+
+- 站长站点编辑/下架：新增 `PATCH /sites/{site_id}` 和 `DELETE /sites/{site_id}`；站长可编辑展示/硬信息，变更 Base URL/API Key/声明模型会退回 `pending` 并软删除旧探测事实与旧分数；下架走软删除。
+- 前端 `/owner` 站点卡片新增详情、编辑、下架；编辑表单支持更换 key、模型、硬信息与质量探测预算。
+- `tests/test_sites.py` 补站点编辑/下架回归测试，后端测试数更新为 114 passed。
 ## 2026-06-29
 
 - 探测 worker（技术核心，真实探测+状态机+评分）：

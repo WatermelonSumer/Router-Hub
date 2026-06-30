@@ -48,6 +48,7 @@ def _to_admin_view(site: RelaySite, owner: User | None) -> SiteAdminView:
         min_topup=site.min_topup,
         pay_methods=site.pay_methods,
         rpm_limit=site.rpm_limit,
+        probe_budget_daily=site.probe_budget_daily,
         owner_id=str(site.owner_id),
         owner_email=owner.email if owner else None,
         owner_wechat=owner.wechat if owner else None,
@@ -71,6 +72,7 @@ def _to_owner_view(site: RelaySite) -> SiteOwnerView:
         min_topup=site.min_topup,
         pay_methods=site.pay_methods,
         rpm_limit=site.rpm_limit,
+        probe_budget_daily=site.probe_budget_daily,
     )
 
 
