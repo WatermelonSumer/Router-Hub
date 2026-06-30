@@ -25,3 +25,10 @@ class ReviewView(BaseModel):
     content: str | None
     verified: bool
     created_at: str
+
+
+class SiteReviewsResponse(BaseModel):
+    """站点公开评价列表：只展示已验证评价。"""
+
+    site_id: str
+    reviews: list[ReviewView]

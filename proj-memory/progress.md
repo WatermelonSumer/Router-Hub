@@ -1,5 +1,31 @@
 # 进度
 
+## 2026-06-30（续13：部署联调收口 + 详情页评价展示）
+
+### Completed
+
+- **部署/联调收口**：
+  - `poetry run aerich upgrade` 返回 `No upgrade items found`，当前数据库无待执行迁移。
+  - 默认幂等跑 `seed_demo` 成功，三榜权重、演示站点、坟场站、集市演示账号/帖子均存在或已补齐。
+  - VM API `http://192.168.142.129:8010` 可达：`/health` 200、`/graveyard` 200、`/rank?leaderboard=claude` 200。
+  - 站点编辑新路由已在 VM 后端加载：无 token `PATCH /sites/{id}` 返回 401（不是旧路由 405）。
+  - 本机启动后台 worker scheduler（PID 37812，连接同一 `.env` 数据库），并手动初始化 Tortoise 跑过一轮 `run_alive_probe()`。
+- **详情页展示评价列表**：
+  - 后端新增公开只读 `GET /sites/{slug}/reviews`，复用公开详情可见性，pending/rejected 仍 404。
+  - `list_site_reviews` 默认只返回 verified 评价；响应复用 ReviewView，不含作者联系方式，不含 key/base_url。
+  - 前端 `siteApi.reviews` + `SiteReviewView/SiteReviewsResponse`；`/site/{slug}` 服务端拉 verified 评价，展示星级、来源标记（站长对接/充值用户）、日期、短 author_id；有评价时补 JSON-LD AggregateRating。
+  - 新增测试：公开评价只展示 verified、未公开站点评价接口 404。后端共 **116 passed**；前端 lint + build 通过。
+
+### Current State（存档点 2026-06-30 续13）
+
+- 本地代码已完成详情页评价展示闭环；VM 后端尚未重载这次新增的 `/sites/{slug}/reviews`，当前探测该接口返回 404 Not Found。
+- 本机 worker scheduler 正在后台运行；若改为真正 VM 常驻，仍需要在 VM 上以进程管理方式启动。
+
+### Next Steps（下次从这里挑）
+
+- 重载 VM 后端，使 `/sites/{slug}/reviews` 生效；再访问详情页验证评价区。
+- 若确认要生产化 worker：在 VM 上用 systemd/supervisor/pm2 等托管 `python -m app.worker.scheduler`。
+- C 端评价：待 root key / new-api 额度查询适配前提具备后实现 user_topup 验证。
 ## 2026-06-30（续12：站长站点编辑 + 下架）
 
 ### Completed

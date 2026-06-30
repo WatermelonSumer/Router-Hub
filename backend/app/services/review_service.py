@@ -95,6 +95,12 @@ async def create_owner_deal_review(
     return review
 
 
-async def list_site_reviews(site_id: str) -> list[Review]:
-    """列某站全部评价（按时间倒序），供详情页/集市展示，标注来源类型。"""
-    return await Review.filter(site_id=site_id).order_by("-created_at")
+async def list_site_reviews(site_id: str, *, verified_only: bool = True) -> list[Review]:
+    """列某站评价（按时间倒序），供详情页展示，标注来源类型。
+
+    公开详情页默认只展示 verified 评价；未验证评价不参与征信，也不公开背书。
+    """
+    query = Review.filter(site_id=site_id)
+    if verified_only:
+        query = query.filter(verified=True)
+    return await query.order_by("-created_at")

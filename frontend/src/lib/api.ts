@@ -219,6 +219,22 @@ export type SiteGatedView = {
   latency_samples: number;
 };
 
+export type SiteReviewView = {
+  review_id: string;
+  site_id: string;
+  author_id: string;
+  review_type: "user_topup" | "owner_deal" | string;
+  rating: number;
+  content: string | null;
+  verified: boolean;
+  created_at: string;
+};
+
+export type SiteReviewsResponse = {
+  site_id: string;
+  reviews: SiteReviewView[];
+};
+
 export const siteApi = {
   create: (payload: SiteCreatePayload, token: string) =>
     request<SiteOwnerView>("/sites", { method: "POST", body: payload, token }),
@@ -246,6 +262,12 @@ export const siteApi = {
    */
   privateDetail: (slug: string, token: string) =>
     request<SiteGatedView>(`/sites/${encodeURIComponent(slug)}/private`, { token }),
+
+  /** 站点公开评价列表：仅展示已验证评价。 */
+  reviews: (slug: string) =>
+    request<SiteReviewsResponse>(`/sites/${encodeURIComponent(slug)}/reviews`, {
+      revalidate: 60,
+    }),
 };
 
 // ===== 管理员审核（与后端 routes/admin.py 对应） =====

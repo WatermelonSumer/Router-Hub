@@ -2,6 +2,10 @@
 
 ## 2026-06-30
 
+- 部署联调：确认迁移无待执行项，幂等重跑 seed_demo，验证 VM health/graveyard/rank/站点编辑路由，启动本机 worker scheduler 并手动跑一轮存活探测。
+- 详情页评价展示：新增 `GET /sites/{slug}/reviews` verified 评价列表；详情页展示星级、来源、日期和文字评价，并补 AggregateRating JSON-LD。
+## 2026-06-30
+
 - 站长站点编辑/下架：新增 `PATCH /sites/{site_id}` 和 `DELETE /sites/{site_id}`；站长可编辑展示/硬信息，变更 Base URL/API Key/声明模型会退回 `pending` 并软删除旧探测事实与旧分数；下架走软删除。
 - 前端 `/owner` 站点卡片新增详情、编辑、下架；编辑表单支持更换 key、模型、硬信息与质量探测预算。
 - `tests/test_sites.py` 补站点编辑/下架回归测试，后端测试数更新为 114 passed。

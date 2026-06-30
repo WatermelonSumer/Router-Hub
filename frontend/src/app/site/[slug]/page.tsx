@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Activity, CheckCircle2, Clock, ExternalLink } from "lucide-react";
+import { Activity, CheckCircle2, Clock, ExternalLink, Star } from "lucide-react";
 
-import { ApiError, siteApi, type SitePublicView } from "@/lib/api";
+import { ApiError, siteApi, type SitePublicView, type SiteReviewView } from "@/lib/api";
 import { SiteShell } from "@/components/site-shell";
 import { GatedPanel } from "./gated-panel";
 
@@ -92,6 +92,30 @@ async function fetchDetail(slug: string): Promise<SitePublicView | null> {
   }
 }
 
+async function fetchReviews(slug: string): Promise<SiteReviewView[]> {
+  try {
+    const data = await siteApi.reviews(slug);
+    return data.reviews;
+  } catch {
+    // 评价不是详情页主链路；接口暂不可用时降级为空列表。
+    return [];
+  }
+}
+
+function reviewTypeLabel(type: string): string {
+  if (type === "owner_deal") return "站长对接已验证";
+  if (type === "user_topup") return "充值用户已验证";
+  return "已验证评价";
+}
+
+function formatDate(iso: string): string {
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -158,9 +182,11 @@ export default async function SiteDetailPage({
   const { slug } = await params;
 
   let detail: SitePublicView | null = null;
+  let reviews: SiteReviewView[] = [];
   let loadError = false;
   try {
     detail = await fetchDetail(slug);
+    if (detail) reviews = await fetchReviews(slug);
   } catch {
     loadError = true;
   }
@@ -183,12 +209,28 @@ export default async function SiteDetailPage({
 
   const sm = statusMeta(detail.status);
 
-  // JSON-LD：客观措辞的 WebPage（评价体系上线后再补 AggregateRating）
+  const ratingAverage =
+    reviews.length > 0
+      ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
+      : null;
+
+  // JSON-LD：客观措辞的 WebPage；有 verified 评价时补 AggregateRating。
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "WebPage",
     name: `${detail.name} · Router-Hub`,
     description: `${detail.name} 中转站客观探测履历`,
+    ...(ratingAverage !== null
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: ratingAverage.toFixed(1),
+            reviewCount: reviews.length,
+            bestRating: 5,
+            worstRating: 1,
+          },
+        }
+      : {}),
   };
 
   return (
@@ -289,6 +331,65 @@ export default async function SiteDetailPage({
             >
               访问站点主页 <ExternalLink className="size-3.5" />
             </a>
+          )}
+        </section>
+
+        <section className="mt-8">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight">已验证评价</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                只展示由真实交互解锁的评价，站长对接和充值用户会分开标注。
+              </p>
+            </div>
+            {ratingAverage !== null && (
+              <div className="flex items-center gap-1 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+                <Star className="size-4 fill-primary text-primary" />
+                <span className="font-semibold tabular-nums">{ratingAverage.toFixed(1)}</span>
+                <span className="text-muted-foreground">/ 5</span>
+              </div>
+            )}
+          </div>
+
+          {reviews.length > 0 ? (
+            <div className="mt-4 grid gap-3">
+              {reviews.map((review) => (
+                <article key={review.review_id} className="rounded-xl border border-border bg-card p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-1" aria-label={String(review.rating) + " 星评价"}>
+                      {Array.from({ length: 5 }, (_, index) => (
+                        <Star
+                          key={index}
+                          className={
+                            index < review.rating
+                              ? "size-4 fill-primary text-primary"
+                              : "size-4 text-muted-foreground/35"
+                          }
+                        />
+                      ))}
+                    </div>
+                    <span className="text-xs text-muted-foreground">{formatDate(review.created_at)}</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                    <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 font-medium text-emerald-600 dark:text-emerald-400">
+                      {reviewTypeLabel(review.review_type)}
+                    </span>
+                    <span className="font-mono text-muted-foreground">
+                      {review.author_id.slice(0, 8)}
+                    </span>
+                  </div>
+                  {review.content ? (
+                    <p className="mt-3 text-sm leading-6 text-foreground">{review.content}</p>
+                  ) : (
+                    <p className="mt-3 text-sm text-muted-foreground">未填写文字评价。</p>
+                  )}
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-4 rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+              暂无已验证评价。
+            </div>
           )}
         </section>
       </div>

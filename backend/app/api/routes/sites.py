@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.deps import get_current_owner, get_current_user
 from app.models.relay_site import RelaySite
 from app.models.user import User
+from app.schemas.review import ReviewView, SiteReviewsResponse
 from app.schemas.site import SiteCreateRequest, SiteOwnerView, SiteUpdateRequest
 from app.schemas.site_detail import (
     SiteGatedView,
@@ -15,6 +16,7 @@ from app.schemas.site_detail import (
     SiteScoreBrief,
     UptimePoint,
 )
+from app.services.review_service import list_site_reviews
 from app.services.site_detail_service import (
     SiteDetailNotFound,
     get_gated_detail,
@@ -125,12 +127,47 @@ async def delete(
         ) from exc
 
 
+def _to_review_view(review) -> ReviewView:
+    """ORM 评价对象转公开评价视图。"""
+    return ReviewView(
+        review_id=str(review.review_id),
+        site_id=str(review.site_id),
+        author_id=str(review.author_id),
+        review_type=review.review_type,
+        rating=review.rating,
+        content=review.content,
+        verified=review.verified,
+        created_at=review.created_at.isoformat(),
+    )
+
+
 def _iso(dt) -> str | None:
     """datetime 转 ISO 字符串；None 透传。"""
     return dt.isoformat() if dt is not None else None
 
 
 # 注意：以下 /{slug} 路由声明在 /mine 之后，确保字面量 /mine 优先匹配。
+
+
+@router.get("/{slug}/reviews", response_model=SiteReviewsResponse)
+async def public_reviews(slug: str) -> SiteReviewsResponse:
+    """站点公开评价列表。无鉴权，仅展示已验证评价。
+
+    复用公开详情可见性：pending/rejected 不公开；响应不含作者联系方式。
+    """
+    try:
+        data = await get_public_detail(slug)
+    except SiteDetailNotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="站点不存在",
+        ) from exc
+
+    reviews = await list_site_reviews(str(data.site.site_id))
+    return SiteReviewsResponse(
+        site_id=str(data.site.site_id),
+        reviews=[_to_review_view(review) for review in reviews],
+    )
 
 
 @router.get("/{slug}", response_model=SitePublicView)

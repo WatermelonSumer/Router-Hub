@@ -11,6 +11,7 @@ from tortoise import timezone
 
 from app.models.probe_result import ProbeResult
 from app.models.relay_site import RelaySite
+from app.models.review import Review
 from app.models.site_score import SiteScore
 
 _SECRET_KEY = "sk-supersecret-9999"
@@ -202,4 +203,48 @@ async def test_gated_detail_unknown_404(client):
     """登录后访问不存在站点的硬信息返回 404。"""
     headers = await _register_user(client, "viewer2@example.com")
     resp = await client.get("/sites/no-such-site/private", headers=headers)
+    assert resp.status_code == 404
+
+
+async def test_public_reviews_verified_only(client):
+    """公开评价接口只返回 verified 评价，并标注来源类型。"""
+    site = await _make_site(slug="reviewed-hub")
+    await Review.create(
+        site_id=site.site_id,
+        author_id="00000000-0000-0000-0000-0000000000bb",
+        review_type="owner_deal",
+        rating=5,
+        content="对接顺利",
+        verified=True,
+    )
+    await Review.create(
+        site_id=site.site_id,
+        author_id="00000000-0000-0000-0000-0000000000cc",
+        review_type="user_topup",
+        rating=1,
+        content="未验证不展示",
+        verified=False,
+    )
+
+    resp = await client.get("/sites/reviewed-hub/reviews")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["site_id"] == str(site.site_id)
+    assert len(body["reviews"]) == 1
+    review = body["reviews"][0]
+    assert review["review_type"] == "owner_deal"
+    assert review["rating"] == 5
+    assert review["content"] == "对接顺利"
+    assert review["verified"] is True
+    assert _SECRET_KEY not in resp.text
+    assert _BASE_URL not in resp.text
+
+
+async def test_public_reviews_pending_404(client):
+    """未公开站点的评价列表同样返回 404。"""
+    await _make_site(slug="pending-review-hub", status="pending")
+
+    resp = await client.get("/sites/pending-review-hub/reviews")
+
     assert resp.status_code == 404
